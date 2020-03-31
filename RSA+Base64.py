@@ -31,24 +31,28 @@ with open('private.pem', "rb") as privatefile:  # 加载自己的密钥
     privkey = rsa.PrivateKey.load_pkcs1(p)
 
 
-
 while True:
     Mode = int(input("选择模式(0:解密, 1:加密)>>>"))
     if Mode:
+
         for index in range(len(PublicKeyList)):
             print('[{index}] {name}'.format(index=index, name=PublicKeyList[index]['name']))
         index = int(input("请选择收信人>>>"))
         with open(PublicKeyList[index]['path'], "rb") as thirdfile:  # 加载 别人的公钥
             p = thirdfile.read()
             third = rsa.PublicKey.load_pkcs1(p)
+
         message = input('Message >>>')
         ciphertext = prefix_m + base64.b64encode(rsa.encrypt(message.encode('utf-8'), third)) + suffix_m
+
         if input("是否签名(Y/N)>>>").lower() == "y":
             signature = base64.b64encode(rsa.sign(message.encode('utf-8'), privkey, encryption_method))
             ciphertext = ciphertext + prefix_s + signature + suffix_s
+
         with open('result.rsa', 'wb') as resultfile:
             resultfile.write(ciphertext)
         print('已将密文输出至 result.rsa')
+
     else:
         for index in range(len(PublicKeyList)):
             print('[{index}] {name}'.format(index=index, name=PublicKeyList[index]['name']))
@@ -56,9 +60,11 @@ while True:
         with open(PublicKeyList[index]['path'], "rb") as thirdfile:  # 加载 别人的公钥
             p = thirdfile.read()
             third = rsa.PublicKey.load_pkcs1(p)
+
         with open('result.rsa', 'r') as resultfile:
             c = resultfile.read().split('\n')  # 按换行符分割
         crypto = base64.b64decode(c[1])  # 主体部分
+
         try:
             message = rsa.decrypt(crypto, privkey)
         except rsa.pkcs1.DecryptionError:
