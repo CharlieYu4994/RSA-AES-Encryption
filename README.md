@@ -8,3 +8,4 @@
 # 使用
 从 Releases 页面下载
 # 本项目已转移到bad—coffee
+地址：https://github.com/bad-coffee/RSA-encrypted-coffee
