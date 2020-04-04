@@ -7,3 +7,4 @@
 
 # 使用
 从 Releases 页面下载
+# 本项目已转移到bad—coffee
