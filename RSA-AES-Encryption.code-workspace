@@ -7,7 +7,12 @@
 		{
 			"name": "Fix",
 			"path": "./Fix"
+		},
+		{
+			"name": "Test",
+			"path": "./Test"
 		}
+
 	],
 	"settings": {
 		"python.pythonPath": "D:\\Envs\\PythonEnvs\\EncryptedCoffee-7nJUTWXb\\Scripts\\python.exe"
