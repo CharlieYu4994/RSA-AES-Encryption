@@ -1,0 +1,12 @@
+PublicKey
+.github
+dist
+build
+__pycache__
+main.spec
+Pipfile
+Pipfile.lock
+Codes/Config.json
+Codes/public.pem
+requirements.txt
+Codes/ResultFile/result.txt

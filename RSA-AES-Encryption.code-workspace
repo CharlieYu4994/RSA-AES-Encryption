@@ -1,0 +1,15 @@
+{
+	"folders": [
+		{
+			"name": "Codes",
+			"path": "./Codes"
+		},
+		{
+			"name": "Fix",
+			"path": "./Fix"
+		}
+	],
+	"settings": {
+		"python.pythonPath": "D:\\Envs\\PythonEnvs\\EncryptedCoffee-7nJUTWXb\\Scripts\\python.exe"
+	}
+}

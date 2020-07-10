@@ -7,5 +7,9 @@
 
 # 使用
 从 Releases 页面下载
-# 本项目已转移到bad—coffee
-地址：https://github.com/bad-coffee/RSA-encrypted-coffee
+
+# 食用说明
+~~https://blog.charlieyu4994.cn/post/encryptedcoffee/~~ （已过期）
+
+# 注意
+本工具仅在Windows平台可用
