@@ -1,6 +1,6 @@
-@echo ¿ªÊ¼¸´ÖÆÎÄ¼ş
+@echo å¼€å§‹å¤åˆ¶
 cd /d %~dp0
 copy pythoncom38.dll %windir%\system32\
 copy pywintypes38.dll %windir%\system32\
-@echo ¸´ÖÆÍê³É
+@echo å¤åˆ¶ç»“æŸ
 @pause
