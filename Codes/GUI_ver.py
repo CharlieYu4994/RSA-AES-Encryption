@@ -21,51 +21,54 @@ class MainLoop(tkinter.Tk):
         inputbox = scrolledtext.ScrolledText(frame0, width=45, height=10)
         inputbox.grid(column=0, row=0)
 
-        footbox0 = ttk.Frame(frame0)
-        footbox0.grid(column=0, row=1, pady=10)
+        footbox_page1 = ttk.Frame(frame0)
+        signcheck = ttk.Checkbutton(footbox_page1, text = "签名")
+        signcheck.grid(column=0, row=0, padx=20)
+        encryptbtn_t = ttk.Button(footbox_page1, width=8, text='加密')
+        encryptbtn_t.grid(column=1, row=0)
+        decryptbtn_t = ttk.Button(footbox_page1, width=8, text='解密')
+        decryptbtn_t.grid(column=2, row=0)
+        footbox_page1.grid(column=0, row=1, pady=10)
 
-        signcheck = ttk.Checkbutton(footbox0, text = "签名")
-        signcheck.grid(column=5, row=0, padx=20)
-
-        rightbox0 = ttk.Frame(footbox0)
-        rightbox0.grid(column=6, row=0)
-
-        encryptbtn_t = ttk.Button(rightbox0, width=8, text='加密')
-        encryptbtn_t.grid(column=0, row=0)
-
-        decryptbtn_t = ttk.Button(rightbox0, width=8, text='解密')
-        decryptbtn_t.grid(column=1, row=0)
-
+        tabs.add(frame0, text="文本加/解密")
 #--------------------------------------------第二页------------------------------------------------#
         frame1 = ttk.Frame(tabs)
-        
-        rightbox1 = ttk.Frame(frame1)
-        rightbox1.grid(column=1, row=0)
 
-        encryptbtn_f = ttk.Button(rightbox1, width=8, text='加密')
-        encryptbtn_f.grid(column=0, row=0)
+        dirbox = ttk.Frame(frame1)
+        dir_l = ttk.Label(dirbox,text='路径:')
+        dir_l.grid(column=0, row=0)
+        dir_e = ttk.Entry(dirbox, width=30)
+        dir_e.grid(column=1, row=0)
+        dir_b = ttk.Button(dirbox, text='选择文件', width=8)
+        dir_b.grid(column=2, row=0)
+        dirbox.grid(column=0, row=0, padx=10, pady=20)
 
-        decryptbtn_f = ttk.Button(rightbox1, width=8, text='解密')
-        decryptbtn_f.grid(column=1, row=0)
+        footbox_page2 = ttk.Frame(frame1)
+        prompt_bar = ttk.Label(footbox_page2, text='进度:')
+        prompt_bar.grid(column=0, row=0, pady=5)
+        progressbar = ttk.Progressbar(footbox_page2)
+        progressbar.grid(column=1, row=0, columnspan=19, sticky='ew', pady=5, padx=6)
+        encryptbtn_f = ttk.Button(footbox_page2, width=20, text='加密')
+        encryptbtn_f.grid(column=0, columnspan=10, row=1, padx=5)
+        decryptbtn_f = ttk.Button(footbox_page2, width=20, text='解密')
+        decryptbtn_f.grid(column=10, columnspan=10, row=1, padx=5)
+        footbox_page2.grid(column=0, row=1, pady=40)
 
+        tabs.add(frame1, text="文件加/解密")
 #--------------------------------------------第三页------------------------------------------------#
         frame2 = ttk.Frame(tabs)
 
+        tabs.add(frame2, text="设置")
 #--------------------------------------------标签栏------------------------------------------------#
         keybox = ttk.Frame(self)
-        keybox.grid(column=0, row=0, sticky = tkinter.NE, padx=3, pady=1)
-
+        keybox.grid(column=0, row=0, sticky = 'ne', padx=3, pady=1)
         prompt = ttk.Label(keybox, text="收件人:")
-        prompt.grid(column=0, row=0, sticky = tkinter.W)
-
+        prompt.grid(column=0, row=0, sticky = 'w')
         keyls = ttk.Combobox(keybox, width=10)
         keyls['values'] = self.keylist
         keyls.current(0)
         keyls.grid(column=1, row=0)
 
-        tabs.add(frame0, text="文本加/解密")
-        tabs.add(frame1, text="文件加/解密")
-        tabs.add(frame2, text="设置")
         tabs.grid(column=0, row=0)
 
 if __name__ == "__main__":
