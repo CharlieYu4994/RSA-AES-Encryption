@@ -35,13 +35,19 @@ class MainLoop(tkinter.Tk):
         frame1 = ttk.Frame(tabs)
 
         dirbox = ttk.Frame(frame1)
-        dir_l = ttk.Label(dirbox,text='路径:')
-        dir_l.grid(column=0, row=0)
-        dir_e = ttk.Entry(dirbox, width=30)
-        dir_e.grid(column=1, row=0)
-        dir_b = ttk.Button(dirbox, text='选择文件', width=8)
-        dir_b.grid(column=2, row=0)
-        dirbox.grid(column=0, row=0, padx=10, pady=20)
+        dir_l_i = ttk.Label(dirbox,text='文件路径:')
+        dir_l_i.grid(column=0, row=0)
+        dir_e_i = ttk.Entry(dirbox, width=25)
+        dir_e_i.grid(column=1, row=0)
+        dir_b_i = ttk.Button(dirbox, text='选择文件', width=8)
+        dir_b_i.grid(column=2, row=0)
+        dir_l_o = ttk.Label(dirbox,text='保存路径:')
+        dir_l_o.grid(column=0, row=1)
+        dir_e_o = ttk.Entry(dirbox, width=25)
+        dir_e_o.grid(column=1, row=1)
+        dir_b_o = ttk.Button(dirbox, text='选择目录', width=8)
+        dir_b_o.grid(column=2, row=1)
+        dirbox.grid(column=0, row=0, padx=16, pady=20)
 
         footbox_page2 = ttk.Frame(frame1)
         prompt_bar = ttk.Label(footbox_page2, text='进度:')
@@ -52,13 +58,23 @@ class MainLoop(tkinter.Tk):
         encryptbtn_f.grid(column=0, columnspan=10, row=1, padx=5)
         decryptbtn_f = ttk.Button(footbox_page2, width=20, text='解密')
         decryptbtn_f.grid(column=10, columnspan=10, row=1, padx=5)
-        footbox_page2.grid(column=0, row=1, pady=40)
+        footbox_page2.grid(column=0, row=1, pady=15)
 
         tabs.add(frame1, text="文件加/解密")
 #--------------------------------------------第三页------------------------------------------------#
         frame2 = ttk.Frame(tabs)
 
-        tabs.add(frame2, text="设置")
+        footbox_page3 = ttk.Frame(frame2)
+        dir_l_cfg = ttk.Label(footbox_page3,text='服务器 URL:')
+        dir_l_cfg.grid(column=0, row=0)
+        dir_e_cfg = ttk.Entry(footbox_page3, width=32)
+        dir_e_cfg.grid(column=1, row=0)
+        footbox_page3.grid(column=0, row=0, columnspan=10, padx=16, pady=10)
+
+        save_btn = ttk.Button(frame2, width=8, text='保存')
+        save_btn.grid(column=9, row=1)
+
+        tabs.add(frame2, text="杂项")
 #--------------------------------------------标签栏------------------------------------------------#
         keybox = ttk.Frame(self)
         keybox.grid(column=0, row=0, sticky = 'ne', padx=3, pady=1)
