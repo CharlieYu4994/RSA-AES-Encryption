@@ -76,7 +76,7 @@ def add_userkey(_pubkey: bytes, _prikey: bytes, _describe: str, _db):
 
 def add_pubkey(_pubkey: bytes, _name: str, _db):
     _cursor = _db.cursor()
-    _cursor.execute(f"INSERT INTO ThirdKeys (PubKey, Name) \
+    _cursor.execute(f"INSERT INTO ThirdKeys (PubKey, Describe) \
 			      VALUES ('{_pubkey.decode()}', '{_name}')")
     _db.commit()
 
@@ -106,9 +106,9 @@ def get_thirdkey(_id: int, _db) -> bytes:
 if __name__ == "__main__":
     #gen_database()
     database = sqlite3.connect('keys.db')
-    #prikey, pubkey = gen_rsakey(3072, '')
-    print(get_keydict('UserKeys', database))
-    print(get_keydict('ThirdKeys', database))
-    print(get_thirdkey(1, database))
+    prikey, pubkey = gen_rsakey(3072, '')
+    for _ in range(5):
+        add_pubkey(pubkey, 'test1', database)
+        add_userkey(pubkey, prikey, 'test1', database)
     #del_key(1, 'UserKeys', database)
 
