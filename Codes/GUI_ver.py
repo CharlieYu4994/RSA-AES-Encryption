@@ -1,4 +1,4 @@
-import tkinter, supports_gui
+import tkinter, supports_gui, sqlite3
 from tkinter import ttk
 from tkinter import scrolledtext
 
@@ -16,7 +16,11 @@ class KeyManage(tkinter.Toplevel):
 
 
 class MainWindows(tkinter.Tk):
-    keylist = []
+    thirdkeydict = dict() 
+    userkeydict = dict()
+    thirdkeylist = list()
+    userkeylist = list()
+    database = sqlite3.connect('keys.db')
 
     def __init__(self):
         super().__init__()
@@ -81,14 +85,20 @@ class MainWindows(tkinter.Tk):
 
         footbox_page3 = ttk.Frame(frame2)
         url_l_cfg = ttk.Label(footbox_page3, text='服务器 URL:')
-        url_l_cfg.grid(column=0, row=0, pady=8)
+        url_l_cfg.grid(column=0, row=0, pady=5)
         url_e_cfg = ttk.Entry(footbox_page3, width=32)
-        url_e_cfg.grid(column=1, row=0, pady=8)
+        url_e_cfg.grid(column=1, row=0, pady=5)
         save_dir_l = ttk.Label(footbox_page3, text='保存路径    :')
-        save_dir_l.grid(column=0, row=1, pady=8)
+        save_dir_l.grid(column=0, row=1, pady=5)
         save_dir_e = ttk.Entry(footbox_page3, width=32)
-        save_dir_e.grid(column=1, row=1, pady=8)
-        footbox_page3.grid(column=0, row=0, columnspan=10, padx=8, pady=20)
+        save_dir_e.grid(column=1, row=1, pady=5)
+        prikeyls_l = ttk.Label(footbox_page3, text='选择密钥    :')
+        prikeyls_l.grid(column=0, row=2, pady=5)
+        prikeyls = ttk.Combobox(footbox_page3, width=30)
+        prikeyls['values'] = self.userkeylist
+        prikeyls.current(0)
+        prikeyls.grid(column=1, row=2, pady=5)
+        footbox_page3.grid(column=0, row=0, columnspan=10, padx=10, pady=15)
 
         save_btn = ttk.Button(frame2, width=8, text='保存')
         save_btn.grid(column=9, row=1)
@@ -106,15 +116,18 @@ class MainWindows(tkinter.Tk):
         keybox.grid(column=0, row=0, sticky='ne', padx=3, pady=1)
         prompt = ttk.Label(keybox, text="收件人:")
         prompt.grid(column=0, row=0, sticky='w')
-        keyls = ttk.Combobox(keybox, width=10)
-        keyls['values'] = self.keylist
-        keyls.current(0)
-        keyls.grid(column=1, row=0)
+        pubkeyls = ttk.Combobox(keybox, width=12)
+        pubkeyls['values'] = self.thirdkeylist
+        pubkeyls.current(0)
+        pubkeyls.grid(column=1, row=0)
 
         tabs.grid(column=0, row=0)
     
     def setup(self):
-
+        self.userkeydict = supports_gui.get_keydict('UserKeys', self.database)
+        self.thirdkeydict = supports_gui.get_keydict('ThirdKeys', self.database)
+        self.userkeylist = list(self.userkeydict.keys())
+        self.thirdkeylist = list(self.thirdkeydict.keys())
 
     def keymanage(self):
         pass
