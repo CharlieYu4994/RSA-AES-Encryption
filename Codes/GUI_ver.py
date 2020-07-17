@@ -1,4 +1,4 @@
-import tkinter
+import tkinter, supports_gui
 from tkinter import ttk
 from tkinter import scrolledtext
 
@@ -9,20 +9,21 @@ class KeyManage(tkinter.Toplevel):
         self.title('KeyManager')
         self.geometry('200x200')
         self.resizable(0, 0)
-        self.setupUI
+        self.setupUI()
 
     def setupUI(self):
         pass
 
 
 class MainWindows(tkinter.Tk):
-    keylist = [1]
+    keylist = []
 
     def __init__(self):
         super().__init__()
         self.title('RSA&AES Encryption')
         self.geometry('338x205')
         self.resizable(0, 0)
+        self.setup()
         self.setupUI()
 
     def setupUI(self):
@@ -111,6 +112,10 @@ class MainWindows(tkinter.Tk):
         keyls.grid(column=1, row=0)
 
         tabs.grid(column=0, row=0)
+    
+    def setup(self):
+
+
     def keymanage(self):
         pass
 
