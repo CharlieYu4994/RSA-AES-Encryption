@@ -3,7 +3,11 @@ from tkinter import ttk
 from tkinter.simpledialog import askstring
 from tkinter import scrolledtext
 
-class PasswordWindows(tkinter.Toplevel):
+class InputWindows(tkinter.Toplevel):
+    '''
+    密码输入窗口
+    '''
+
     def __init__(self):
         super().__init__()
         self.protocol('WM_DELETE_WINDOW', lambda: self.cancel(None))
@@ -11,6 +15,7 @@ class PasswordWindows(tkinter.Toplevel):
         self.geometry('300x100')
         self.resizable(0, 0)
         self.setupUI()
+        self.password_e.focus_set()
 
     def setupUI(self):
         password_box = ttk.Frame(self)
@@ -18,6 +23,7 @@ class PasswordWindows(tkinter.Toplevel):
         password_l.grid(column=0, row=0)
         self.password_e = ttk.Entry(password_box, width=32)
         self.password_e.grid(column=1, row=0)
+        self.password_e['show'] = '*'
         self.password_e.bind("<Return>", self.submit)
         password_box.grid(column=0, row=0, padx=15, pady=15)
 
@@ -37,6 +43,10 @@ class PasswordWindows(tkinter.Toplevel):
         self.destroy()
 
 class KeyManage(tkinter.Toplevel):
+    '''
+    密钥管理窗口
+    '''
+
     database = sqlite3.connect('keys.db')
 
     def __init__(self):
@@ -52,11 +62,16 @@ class KeyManage(tkinter.Toplevel):
 
 
 class MainWindows(tkinter.Tk):
+    '''
+    主入口
+    '''
+
     database = sqlite3.connect('keys.db')
-    thirdkeydict = dict() 
+    thirdkeydict = dict()
     userkeydict = dict()
     thirdkeylist = list()
     userkeylist = list()
+    prikey = None; pubkey = None
 
     def __init__(self):
         super().__init__()
@@ -132,7 +147,6 @@ class MainWindows(tkinter.Tk):
         prikeyls_l.grid(column=0, row=2, pady=5)
         self.prikeyls = ttk.Combobox(footbox_page3, width=30)
         self.prikeyls['values'] = self.userkeylist
-        self.prikeyls.current(0)
         self.prikeyls.bind("<<ComboboxSelected>>", self.select_prikey)
         self.prikeyls.grid(column=1, row=2, pady=5)
         footbox_page3.grid(column=0, row=0, columnspan=10, padx=10, pady=15)
@@ -152,9 +166,9 @@ class MainWindows(tkinter.Tk):
         keybox = ttk.Frame(self)
         prompt = ttk.Label(keybox, text="收件人:")
         prompt.grid(column=0, row=0, sticky='w')
+        prompt.bind('<Button-1>', self.freshkeylist)
         self.pubkeyls = ttk.Combobox(keybox, width=12)
         self.pubkeyls['values'] = self.thirdkeylist
-        self.pubkeyls.current(0)
         self.pubkeyls.grid(column=1, row=0)
         keybox.grid(column=0, row=0, sticky='ne', padx=3, pady=1)
 
@@ -166,17 +180,23 @@ class MainWindows(tkinter.Tk):
         self.userkeylist = list(self.userkeydict.keys())
         self.thirdkeylist = list(self.thirdkeydict.keys())
 
-    def freshkeylist(self):
+    def freshkeylist(self, event):
         self.getkeylist()
         self.pubkeyls['values'] = self.thirdkeylist
         self.prikeyls['values'] = self.userkeylist
     
     def select_prikey(self, event):
         _id = self.userkeydict[self.prikeyls.get()]
-        _prikey, _pubkey = supports_gui.get_userkey(_id, self.database)
-        passwordwindows = PasswordWindows()
-        self.wait_window(passwordwindows)
-        print(passwordwindows.password)
+        _prikey_t, _pubkey_t = supports_gui.get_userkey(_id, self.database)
+        for _ in range(5):
+            _inputwindows = InputWindows()
+            self.wait_window(_inputwindows)
+            _status, _prikey, _pubkey = supports_gui.load_key(_pubkey_t, _prikey_t, _inputwindows.password)
+            if _status: self.prikey = _prikey; self.pubkey = _pubkey; break
+            tkinter.messagebox.showwarning('Warning','密码错误')
+        if not _status:
+            tkinter.messagebox.showerror('Error','密码五次输入错误，请重新选择')
+            self.prikeyls.delete(first='0', last='end')
 
     def keymanage(self):
         pass

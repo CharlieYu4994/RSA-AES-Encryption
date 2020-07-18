@@ -115,7 +115,7 @@ def get_thirdkey(_id: int, _db) -> bytes:
 if __name__ == "__main__":
     #gen_database()
     database = sqlite3.connect('keys.db')
-    prikey, pubkey = gen_rsakey(3072, '')
+    prikey, pubkey = gen_rsakey(3072, '123')
     for _ in range(5):
         add_pubkey(pubkey, 'test1', database)
         add_userkey(pubkey, prikey, 'test1', database)
