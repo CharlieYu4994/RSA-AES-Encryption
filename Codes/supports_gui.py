@@ -29,12 +29,21 @@ def gen_rsakey(_length: int, _passphrase: str) -> bytes:
     return _key.export_key(passphrase=_passphrase if _passphrase else None),\
            _key.publickey().export_key()
 
-def rsa_decrypt(_pubkey, _prikey, _data: bytes, _session_key: bytes) -> bytes:
+def load_key(_pubkey: bytes, _prikey=None, _passphrase=None):
+    if _prikey:
+        try:
+            _pubkey = RSA.import_key(_pubkey)
+            _prikey = RSA.import_key(_prikey, passphrase=_passphrase if _passphrase else None)
+        except Exception as E: return False, str(E), ''
+        else: return True, _prikey, _pubkey
+    else: return RSA.import_key(_pubkey)
+
+def rsa_decrypt(_prikey, _data: bytes, _session_key: bytes) -> bytes:
     _cipher = PKCS1_OAEP.new(_prikey)
     _session_key = _cipher.decrypt(_session_key)
     return aes_decrypt(_session_key, _data)
 
-def rsa_encrypt(_pubkey, _prikey, _data: bytes) -> bytes:
+def rsa_encrypt(_pubkey, _data: bytes) -> bytes:
     _session_key = get_random_bytes(16)
     _cipher = PKCS1_OAEP.new(_pubkey)
     return _cipher.encrypt(_session_key), aes_encrypt(_session_key, _data)
