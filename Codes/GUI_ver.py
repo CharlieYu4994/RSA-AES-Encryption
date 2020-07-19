@@ -1,7 +1,7 @@
 import tkinter, supports_gui, sqlite3, pyperclip, re
 from tkinter import ttk
 from tkinter.simpledialog import askstring
-from tkinter import scrolledtext
+from tkinter import scrolledtext, filedialog
 import base64
 
 msg_prefix = '-----BEGIN MESSAGE-----\n'
@@ -12,12 +12,14 @@ class InputWindow(tkinter.Toplevel):
     '''
     密码输入窗口
     '''
+    
+    password = None
 
     def __init__(self):
         super().__init__()
         displayh = self.winfo_screenheight() // 2
         dispalyw = self.winfo_screenwidth() // 2
-        self.protocol('WM_DELETE_WINDOW', lambda: self.cancel(None))
+        self.protocol('WM_DELETE_WINDOW', lambda: self.destroy())
         self.title('Password')
         self.geometry(f'300x100+{dispalyw-150}+{displayh-100}')
         self.resizable(0, 0)
@@ -37,17 +39,14 @@ class InputWindow(tkinter.Toplevel):
         btn_box = ttk.Frame(self)
         o_btn = ttk.Button(btn_box, text="确定", width=16, command=lambda: self.submit(None))
         o_btn.grid(column=0, row=0, padx=12)        
-        c_btn = ttk.Button(btn_box, text="取消", width=16, command=lambda: self.cancel(None))
+        c_btn = ttk.Button(btn_box, text="取消", width=16, command=lambda event: self.destroy())
         c_btn.grid(column=1, row=0, padx=12)
         btn_box.grid(column=0, row=1, pady=10)
 
     def submit(self, event):
         self.password = self.password_e.get()
         self.destroy()
-    
-    def cancel(self, enent):
-        self.password = None
-        self.destroy()
+
 
 class ResultWindow(tkinter.Toplevel):
     '''
@@ -65,13 +64,12 @@ class ResultWindow(tkinter.Toplevel):
         self.title('Result')
         self.geometry(f'338x180+{dispalyw-150}+{displayh-200}')
         self.resizable(0, 0)
+        self.setup_result_box()
         if   _type == 0: self.setupUI_E()
         elif _type == 1: self.setupUI_D()
 
 
     def setupUI_E(self):
-        self.setup_result_box()
-
         clipbrd_btn = ttk.Button(self, text='复制', width=10, command=lambda: pyperclip.copy(self.result))
         clipbrd_btn.grid(column=0, row=1, pady=10)
 
@@ -79,8 +77,6 @@ class ResultWindow(tkinter.Toplevel):
         ok_btn.grid(column=1, row=1, pady=10)
     
     def setupUI_D(self):
-        self.setup_result_box()
-
         sign_l = ttk.Label(self, text='√ 签名有效' if self.sig_status else '× 签名无效')
         sign_l.grid(column=0, row=1)
 
@@ -166,13 +162,17 @@ class MainWindows(tkinter.Tk):
         dir_l_i.grid(column=0, row=0)
         self.dir_e_i = ttk.Entry(dirbox, width=25)
         self.dir_e_i.grid(column=1, row=0)
-        dir_b_i = ttk.Button(dirbox, text='选择文件', width=8)
+        dir_b_i = ttk.Button(dirbox, text='选择文件', width=8,\
+            command=lambda: self.dir_e_i.insert('0',\
+                filedialog.askopenfilename(title='请选择文件')))
         dir_b_i.grid(column=2, row=0)
         dir_l_o = ttk.Label(dirbox, text='保存路径:')
         dir_l_o.grid(column=0, row=1)
         self.dir_e_o = ttk.Entry(dirbox, width=25)
         self.dir_e_o.grid(column=1, row=1)
-        dir_b_o = ttk.Button(dirbox, text='选择目录', width=8)
+        dir_b_o = ttk.Button(dirbox, text='选择目录', width=8,\
+            command=lambda: self.dir_e_o.insert('0',\
+                filedialog.askdirectory(title='请选择文件夹')))
         dir_b_o.grid(column=2, row=1)
         dirbox.grid(column=0, row=0, padx=20, pady=20)
 
@@ -266,7 +266,7 @@ class MainWindows(tkinter.Tk):
 
     def encrypt_t(self):
         message = self.inputbox.get(index1='0.0', index2='end')[:-1].encode()
-        enc_aes_key, enc_message = supports_gui.rsa_encrypt(self.thirdkey, message)
+        enc_aes_key, enc_message = supports_gui.composite_encrypt(self.thirdkey, message)
         sig = supports_gui.pss_sign(self.prikey, message) if self.sign_check.get() else b'No sig'
 
         b64ed_aes_key = base64.b64encode(enc_aes_key).decode()
@@ -286,11 +286,12 @@ class MainWindows(tkinter.Tk):
         enc_message = base64.b64decode(b64ed_message.encode())
         sig = base64.b64decode(b64ed_sig.encode())
 
-        message = supports_gui.rsa_decrypt(self.prikey, enc_message, enc_aes_key)
+        message = supports_gui.composite_decrypt(self.prikey, enc_message, enc_aes_key)
         status = supports_gui.pss_verify(self.thirdkey, message, sig) if not sig == b'No sig' else False
         resultwindow = ResultWindow(message, 1, status)
-
-        
+    
+    def encrypt_f(self):
+        pass
 
 if __name__ == "__main__":
     app = MainWindows()

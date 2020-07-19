@@ -15,14 +15,21 @@ def pkcs7unpadding(_data: bytes) -> bytes:  # 去填充
     _length = len(_data)
     return _data[0:_length - int(_data[-1])]
 
-def aes_encrypt(_key: bytes, _data: bytes) -> bytes:
+def aes_encrypt(_key: bytes, _data: bytes, _pad=True) -> bytes:
     _cipher = AES.new(_key, AES.MODE_CBC, _key[0:16])
-    return _cipher.encrypt(pkcs7padding(_data, AES.block_size))
+    return _cipher.encrypt(pkcs7padding(_data, AES.block_size) if _pad else _data)
 
-def aes_decrypt(_key: bytes, _data: bytes) -> bytes:
+def aes_decrypt(_key: bytes, _data: bytes, _pad=True) -> bytes:
     _cipher = AES.new(_key, AES.MODE_CBC, _key[0:16])
-    return pkcs7unpadding(_cipher.decrypt(_data))
+    return pkcs7unpadding(_cipher.decrypt(_data)) if _pad else _cipher.decrypt(_data)
 
+def rsa_decrypt(_prikey, _data: bytes) -> bytes:
+    _cipher = PKCS1_OAEP.new(_prikey)
+    return _cipher.decrypt(_data)
+
+def rsa_encrypt(_pubkey, _data: bytes) -> bytes:
+    _cipher = PKCS1_OAEP.new(_pubkey)
+    return _cipher.encrypt(_data)
 
 def gen_rsakey(_length: int, _passphrase: str) -> bytes:
     _key = RSA.generate(_length)
@@ -38,15 +45,13 @@ def load_key(_pubkey: bytes, _prikey=None, _passphrase=None):
         else: return True, _prikey, _pubkey
     else: return RSA.import_key(_pubkey)
 
-def rsa_decrypt(_prikey, _data: bytes, _session_key: bytes) -> bytes:
-    _cipher = PKCS1_OAEP.new(_prikey)
-    _session_key = _cipher.decrypt(_session_key)
+def composite_decrypt(_prikey, _data: bytes, _session_key: bytes) -> bytes:
+    _session_key = rsa_decrypt(_prikey, _session_key)
     return aes_decrypt(_session_key, _data)
 
-def rsa_encrypt(_pubkey, _data: bytes) -> bytes:
+def composite_encrypt(_pubkey, _data: bytes) -> bytes:
     _session_key = get_random_bytes(16)
-    _cipher = PKCS1_OAEP.new(_pubkey)
-    return _cipher.encrypt(_session_key), aes_encrypt(_session_key, _data)
+    return rsa_encrypt(_pubkey, _session_key), aes_encrypt(_session_key, _data)
 
 def pss_sign(_prikey, _data: bytes) -> bytes:
     _hash = SHA256.new(_data)
@@ -112,12 +117,19 @@ def get_thirdkey(_id: int, _db) -> bytes:
     return _cursor.fetchall()[0][0].encode()
 
 # -----------------------------------------Other Part------------------------------------- #
-    
+def read_file(_path: str):
+    BLOCK_SIZE = 1048576
+    with open(_path, "rb") as f:
+        while True:
+            block = f.read(BLOCK_SIZE)
+            if block: yield block, not len(block) == BLOCK_SIZE
+            else: return
 
 # --------------------------------------------Debug--------------------------------------- #
 if __name__ == "__main__":
-    database = sqlite3.connect('keys.db')
-    prikey, pubkey = gen_rsakey(1024, '')
-    add_userkey(prikey, pubkey, 'test', database)
-    add_pubkey(pubkey, 'CharlieYu', database)
-
+    key = b'\x19\xc9JV\t%*g\xfb\xe5\xd3\x82\xd0\xec5\x8c'
+    o = open('1.flac', 'wb')
+    for block, status in read_file('test.bin'):
+        print(status)
+        o.write(aes_decrypt(key, block, status))
+    o.close()
