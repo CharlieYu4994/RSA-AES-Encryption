@@ -119,5 +119,5 @@ if __name__ == "__main__":
     database = sqlite3.connect('keys.db')
     prikey, pubkey = gen_rsakey(1024, '')
     add_userkey(prikey, pubkey, 'test', database)
-    add_pubkey(pubkey, 'test', database)
+    add_pubkey(pubkey, 'CharlieYu', database)
 

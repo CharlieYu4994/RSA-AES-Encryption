@@ -56,26 +56,41 @@ class ResultWindow(tkinter.Toplevel):
 
     result = ''
 
-    def __init__(self, _result: str):
+    def __init__(self, _result: str, _type: int, _sig_status=True):
         super().__init__()
         displayh = self.winfo_screenheight() // 2
         dispalyw = self.winfo_screenwidth() // 2
         self.result = _result
+        self.sig_status = _sig_status
         self.title('Result')
         self.geometry(f'338x180+{dispalyw-150}+{displayh-200}')
         self.resizable(0, 0)
-        self.setupUI()
+        if   _type == 0: self.setupUI_E()
+        elif _type == 1: self.setupUI_D()
 
-    def setupUI(self):
-        textbox = scrolledtext.ScrolledText(self, width=45, height=10)
-        textbox.grid(column=0, row=0, columnspan=2)
-        textbox.insert('0.0', self.result)
+
+    def setupUI_E(self):
+        self.setup_result_box()
 
         clipbrd_btn = ttk.Button(self, text='复制', width=10, command=lambda: pyperclip.copy(self.result))
         clipbrd_btn.grid(column=0, row=1, pady=10)
 
         ok_btn = ttk.Button(self, text='确定', width=10, command=lambda: self.destroy())
         ok_btn.grid(column=1, row=1, pady=10)
+    
+    def setupUI_D(self):
+        self.setup_result_box()
+
+        sign_l = ttk.Label(self, text='√ 签名有效' if self.sig_status else '× 签名无效')
+        sign_l.grid(column=0, row=1)
+
+        ok_btn = ttk.Button(self, text='确定', width=10, command=lambda: self.destroy())
+        ok_btn.grid(column=1, row=1, pady=10)
+    
+    def setup_result_box(self):
+        textbox = scrolledtext.ScrolledText(self, width=45, height=10)
+        textbox.grid(column=0, row=0, columnspan=2)
+        textbox.insert('0.0', self.result)
 
 
 class KeyManage(tkinter.Toplevel):
@@ -112,7 +127,7 @@ class MainWindows(tkinter.Tk):
     def __init__(self):
         super().__init__()
         self.title('RSA&AES Encryption')
-        self.geometry('338x205')
+        self.geometry('345x205')
         self.resizable(0, 0)
         self.getkeylist()
         self.setupUI()
@@ -129,7 +144,7 @@ class MainWindows(tkinter.Tk):
 #--------------------------------------------第一页------------------------------------------------#
         frame0 = ttk.Frame(tabs)
 
-        self.inputbox = scrolledtext.ScrolledText(frame0, width=45, height=10)
+        self.inputbox = scrolledtext.ScrolledText(frame0, width=46, height=10)
         self.inputbox.grid(column=0, row=0)
 
         footbox_page1 = ttk.Frame(frame0)
@@ -159,7 +174,7 @@ class MainWindows(tkinter.Tk):
         self.dir_e_o.grid(column=1, row=1)
         dir_b_o = ttk.Button(dirbox, text='选择目录', width=8)
         dir_b_o.grid(column=2, row=1)
-        dirbox.grid(column=0, row=0, padx=16, pady=20)
+        dirbox.grid(column=0, row=0, padx=20, pady=20)
 
         footbox_page2 = ttk.Frame(frame1)
         prompt_bar = ttk.Label(footbox_page2, text='进度:')
@@ -192,7 +207,7 @@ class MainWindows(tkinter.Tk):
         self.prikeyls['values'] = self.userkeylist
         self.prikeyls.bind("<<ComboboxSelected>>", lambda event: self.select_prikey(self.prikeyls.get()))
         self.prikeyls.grid(column=1, row=2, pady=5)
-        footbox_page3.grid(column=0, row=0, columnspan=10, padx=10, pady=15)
+        footbox_page3.grid(column=0, row=0, columnspan=10, padx=16, pady=15)
 
         save_btn = ttk.Button(frame2, width=8, text='保存')
         save_btn.grid(column=9, row=1)
@@ -207,10 +222,10 @@ class MainWindows(tkinter.Tk):
         tabs.add(frame2, text="杂项")
 #--------------------------------------------标签栏------------------------------------------------#
         keybox = ttk.Frame(self)
-        prompt = ttk.Label(keybox, text="收件人:")
+        prompt = ttk.Label(keybox, text="收/发件人:")
         prompt.grid(column=0, row=0, sticky='w')
         prompt.bind('<Button-1>', self.freshkeylist)
-        self.pubkeyls = ttk.Combobox(keybox, width=12)
+        self.pubkeyls = ttk.Combobox(keybox, width=11)
         self.pubkeyls['values'] = self.thirdkeylist
         self.pubkeyls.grid(column=1, row=0)
         self.pubkeyls.bind('<<ComboboxSelected>>', lambda event: self.select_thirdkey(self.pubkeyls.get()))
@@ -243,7 +258,7 @@ class MainWindows(tkinter.Tk):
             self.prikeyls.delete(first='0', last='end')
     
     def select_thirdkey(self, _describe):
-        _id = self.userkeydict[_describe]
+        _id = self.thirdkeydict[_describe]
         self.thirdkey = supports_gui.load_key(supports_gui.get_thirdkey(_id, self.database))
 
     def keymanage(self):
@@ -253,20 +268,28 @@ class MainWindows(tkinter.Tk):
         message = self.inputbox.get(index1='0.0', index2='end')[:-1].encode()
         enc_aes_key, enc_message = supports_gui.rsa_encrypt(self.thirdkey, message)
         sig = supports_gui.pss_sign(self.prikey, message) if self.sign_check.get() else b'No sig'
+
         b64ed_aes_key = base64.b64encode(enc_aes_key).decode()
         b64ed_message = base64.b64encode(enc_message).decode()
         b64ed_sig = base64.b64encode(sig).decode()
+
         final_message = f'{msg_prefix}{b64ed_aes_key}.{b64ed_message}.{b64ed_sig}{msg_suffix}'
-        resultwindow = ResultWindow(final_message)
+        resultwindow = ResultWindow(final_message, 0)
     
     def decrypt_t(self):
-        message = self.inputbox.get(index1='0.0', index2='end')[:-1].replace('\n', '')
-        message = re.search(r'(?<=-----BEGIN MESSAGE-----).*?(?=-----END MESSAGE-----)', message)
-        if not message: tkinter.messagebox.showwarning('Warning','密文解析失败'); return
-        b64ed_aes_key, b64ed_message, b64ed_sig = message.group().split('.')
+        message_t = self.inputbox.get(index1='0.0', index2='end')[:-1].replace('\n', '')
+        message_t = re.search(r'(?<=-----BEGIN MESSAGE-----).*?(?=-----END MESSAGE-----)', message_t)
+        if not message_t: tkinter.messagebox.showwarning('Warning','密文解析失败'); return
+
+        b64ed_aes_key, b64ed_message, b64ed_sig = message_t.group().split('.')
         enc_aes_key = base64.b64decode(b64ed_aes_key.encode())
         enc_message = base64.b64decode(b64ed_message.encode())
-        print(supports_gui.rsa_decrypt(self.prikey, enc_message, enc_aes_key))
+        sig = base64.b64decode(b64ed_sig.encode())
+
+        message = supports_gui.rsa_decrypt(self.prikey, enc_message, enc_aes_key)
+        status = supports_gui.pss_verify(self.thirdkey, message, sig) if not sig == b'No sig' else False
+        resultwindow = ResultWindow(message, 1, status)
+
         
 
 if __name__ == "__main__":
