@@ -12,4 +12,4 @@
 ~~https://blog.charlieyu4994.cn/post/encryptedcoffee/~~ （已过期）
 
 # 注意
-本工具仅在Windows平台可用
+~~本工具仅在Windows平台可用~~  （现在换掉了 pywin32 的轮子，应该能通用了吧）
