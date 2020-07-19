@@ -2,7 +2,7 @@ import tkinter, supports_gui, sqlite3, pyperclip, re
 from tkinter import ttk
 from tkinter.simpledialog import askstring
 from tkinter import scrolledtext, filedialog
-import base64
+import base64, os
 
 msg_prefix = '-----BEGIN MESSAGE-----\n'
 msg_suffix = '\n-----END MESSAGE-----'
@@ -287,12 +287,13 @@ class MainWindows(tkinter.Tk):
         sig = base64.b64decode(b64ed_sig.encode())
 
         message = supports_gui.composite_decrypt(self.prikey, enc_message, enc_aes_key)
-        status = supports_gui.pss_verify(self.thirdkey, message, sig) if not sig == b'No sig' else False
+        status = supports_gui.pss_verify(self.thirdkey, message, sig) if sig != b'No sig' else False
         resultwindow = ResultWindow(message, 1, status)
     
     def encrypt_f(self):
         pass
 
 if __name__ == "__main__":
+    if not os.path.exists('keyring.db'): supports_gui.gen_database()
     app = MainWindows()
     app.mainloop()

@@ -68,7 +68,7 @@ def pss_verify(_pubkey, _data: bytes, _signature: bytes) -> bool:
 
 # ---------------------------------------Database Part------------------------------------ #
 def gen_database():
-    _db = sqlite3.connect('keys.db')
+    _db = sqlite3.connect('keyring.db')
     _cursor = _db.cursor()
     _cursor.execute("""CREATE TABLE UserKeys(
 				ID           INTEGER PRIMARY KEY,
@@ -122,7 +122,7 @@ def read_file(_path: str):
     with open(_path, "rb") as f:
         while True:
             block = f.read(BLOCK_SIZE)
-            if block: yield block, not len(block) == BLOCK_SIZE
+            if block: yield block, len(block) != BLOCK_SIZE
             else: return
 
 # --------------------------------------------Debug--------------------------------------- #
