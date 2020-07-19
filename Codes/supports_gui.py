@@ -110,14 +110,11 @@ def get_userkey(_id: int, _db) -> bytes:
 def get_thirdkey(_id: int, _db) -> bytes:
     _cursor = _db.cursor().execute(f"SELECT PubKey FROM ThirdKeys WHERE ID = '{_id}'")
     return _cursor.fetchall()[0][0].encode()
+
+# -----------------------------------------Other Part------------------------------------- #
     
 
+# --------------------------------------------Debug--------------------------------------- #
 if __name__ == "__main__":
-    #gen_database()
-    database = sqlite3.connect('keys.db')
-    prikey, pubkey = gen_rsakey(3072, '123')
-    for _ in range(5):
-        add_pubkey(pubkey, 'test1', database)
-        add_userkey(pubkey, prikey, 'test1', database)
-    #del_key(1, 'UserKeys', database)
+    pass
 

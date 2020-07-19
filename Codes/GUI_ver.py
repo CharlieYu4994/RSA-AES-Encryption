@@ -1,18 +1,22 @@
-import tkinter, supports_gui, sqlite3
+import tkinter, supports_gui, sqlite3, pyperclip
 from tkinter import ttk
 from tkinter.simpledialog import askstring
 from tkinter import scrolledtext
+import base64
 
-class InputWindows(tkinter.Toplevel):
+
+class InputWindow(tkinter.Toplevel):
     '''
     密码输入窗口
     '''
 
     def __init__(self):
         super().__init__()
+        displayh = self.winfo_screenheight() // 2
+        dispalyw = self.winfo_screenwidth() // 2
         self.protocol('WM_DELETE_WINDOW', lambda: self.cancel(None))
         self.title('Password')
-        self.geometry('300x100')
+        self.geometry(f'300x100+{dispalyw-150}+{displayh-100}')
         self.resizable(0, 0)
         self.setupUI()
         self.password_e.focus_set()
@@ -32,7 +36,7 @@ class InputWindows(tkinter.Toplevel):
         o_btn.grid(column=0, row=0, padx=12)        
         c_btn = ttk.Button(btn_box, text="取消", width=16, command=lambda: self.cancel(None))
         c_btn.grid(column=1, row=0, padx=12)
-        btn_box.grid(column=0, row=1, pady = 10)
+        btn_box.grid(column=0, row=1, pady=10)
 
     def submit(self, event):
         self.password = self.password_e.get()
@@ -41,6 +45,35 @@ class InputWindows(tkinter.Toplevel):
     def cancel(self, enent):
         self.password = None
         self.destroy()
+
+class ResultWindow(tkinter.Toplevel):
+    '''
+    结果显示窗口
+    '''
+
+    result = ''
+
+    def __init__(self, _result: str):
+        super().__init__()
+        displayh = self.winfo_screenheight() // 2
+        dispalyw = self.winfo_screenwidth() // 2
+        self.result = _result
+        self.title('Result')
+        self.geometry(f'338x180+{dispalyw-150}+{displayh-200}')
+        self.resizable(0, 0)
+        self.setupUI()
+
+    def setupUI(self):
+        textbox = scrolledtext.ScrolledText(self, width=45, height=10)
+        textbox.grid(column=0, row=0, columnspan=2)
+        textbox.insert('0.0', self.result)
+
+        clipbrd_btn = ttk.Button(self, text='复制', width=10, command=lambda: pyperclip.copy(self.result))
+        clipbrd_btn.grid(column=0, row=1, pady=10)
+
+        ok_btn = ttk.Button(self, text='确定', width=10, command=lambda: self.destroy())
+        ok_btn.grid(column=1, row=1, pady=10)
+
 
 class KeyManage(tkinter.Toplevel):
     '''
@@ -71,7 +104,7 @@ class MainWindows(tkinter.Tk):
     userkeydict = dict()
     thirdkeylist = list()
     userkeylist = list()
-    prikey = None; pubkey = None
+    prikey = pubkey = thirdkey = None
 
     def __init__(self):
         super().__init__()
@@ -80,6 +113,12 @@ class MainWindows(tkinter.Tk):
         self.resizable(0, 0)
         self.getkeylist()
         self.setupUI()
+        if self.thirdkeylist:
+            self.select_thirdkey(self.thirdkeylist[0])
+            self.pubkeyls.current(0)
+        if self.userkeylist:
+            self.select_prikey(self.userkeylist[0])
+            self.prikeyls.current(0)
 
     def setupUI(self):
         tabs = ttk.Notebook(self)
@@ -145,9 +184,10 @@ class MainWindows(tkinter.Tk):
         self.save_dir_e.grid(column=1, row=1, pady=5)
         prikeyls_l = ttk.Label(footbox_page3, text='选择密钥    :')
         prikeyls_l.grid(column=0, row=2, pady=5)
+        prikeyls_l.bind('<Button-1>', self.freshkeylist)
         self.prikeyls = ttk.Combobox(footbox_page3, width=30)
         self.prikeyls['values'] = self.userkeylist
-        self.prikeyls.bind("<<ComboboxSelected>>", self.select_prikey)
+        self.prikeyls.bind("<<ComboboxSelected>>", lambda event: self.select_prikey(self.prikeyls.get()))
         self.prikeyls.grid(column=1, row=2, pady=5)
         footbox_page3.grid(column=0, row=0, columnspan=10, padx=10, pady=15)
 
@@ -170,6 +210,7 @@ class MainWindows(tkinter.Tk):
         self.pubkeyls = ttk.Combobox(keybox, width=12)
         self.pubkeyls['values'] = self.thirdkeylist
         self.pubkeyls.grid(column=1, row=0)
+        self.pubkeyls.bind('<<ComboboxSelected>>', lambda event: self.select_thirdkey(self.pubkeyls.get()))
         keybox.grid(column=0, row=0, sticky='ne', padx=3, pady=1)
 
         tabs.grid(column=0, row=0)
@@ -185,27 +226,38 @@ class MainWindows(tkinter.Tk):
         self.pubkeyls['values'] = self.thirdkeylist
         self.prikeyls['values'] = self.userkeylist
     
-    def select_prikey(self, event):
-        _id = self.userkeydict[self.prikeyls.get()]
+    def select_prikey(self, _describe: str):
+        _id = self.userkeydict[_describe]
         _prikey_t, _pubkey_t = supports_gui.get_userkey(_id, self.database)
         for _ in range(5):
-            _inputwindows = InputWindows()
-            self.wait_window(_inputwindows)
-            _status, _prikey, _pubkey = supports_gui.load_key(_pubkey_t, _prikey_t, _inputwindows.password)
+            _inputwindow = InputWindow()
+            self.wait_window(_inputwindow)
+            _status, _prikey, _pubkey = supports_gui.load_key(_pubkey_t, _prikey_t, _inputwindow.password)
             if _status: self.prikey = _prikey; self.pubkey = _pubkey; break
             tkinter.messagebox.showwarning('Warning','密码错误')
         if not _status:
             tkinter.messagebox.showerror('Error','密码五次输入错误，请重新选择')
             self.prikeyls.delete(first='0', last='end')
+    
+    def select_thirdkey(self, _describe):
+        _id = self.userkeydict[_describe]
+        self.thirdkey = supports_gui.load_key(supports_gui.get_thirdkey(_id, self.database))
 
     def keymanage(self):
         pass
 
     def encrypt_t(self):
-        message = self.inputbox.get(index1='0.0', index2='end')
-        print(self.getkey(self.pubkeyls.get(), _is_user=True))
-        #enc_aes_key, enc_message = supports_gui.rsa_encrypt(, message[:-1].encode())
-        #self.sign_check.get()
+        message = self.inputbox.get(index1='0.0', index2='end')[:-1].encode()
+        enc_aes_key, enc_message = supports_gui.rsa_encrypt(self.thirdkey, message)
+        sig = supports_gui.pss_sign(self.prikey, message) if self.sign_check.get() else b'No sig'
+        b64ed_aes_key = base64.b64encode(enc_aes_key).decode()
+        b64ed_message = base64.b64encode(enc_message).decode()
+        b64ed_sig = base64.b64encode(sig).decode()
+        final_message = f'{b64ed_aes_key}.{b64ed_message}.{b64ed_sig}'
+        resultwindow = ResultWindow(final_message)
+    
+    def decrypt_t(self):
+        message = self.inputbox.get(index1='0.0', index2='end')[:-1].encode()
 
 
 if __name__ == "__main__":
