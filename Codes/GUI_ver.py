@@ -1,8 +1,11 @@
-import tkinter, supports_gui, sqlite3, pyperclip
+import tkinter, supports_gui, sqlite3, pyperclip, re
 from tkinter import ttk
 from tkinter.simpledialog import askstring
 from tkinter import scrolledtext
 import base64
+
+msg_prefix = '-----BEGIN MESSAGE-----\n'
+msg_suffix = '\n-----END MESSAGE-----'
 
 
 class InputWindow(tkinter.Toplevel):
@@ -135,7 +138,7 @@ class MainWindows(tkinter.Tk):
         signcheck.grid(column=0, row=0, padx=20)
         encryptbtn_t = ttk.Button(footbox_page1, width=8, text='加密', command=self.encrypt_t)
         encryptbtn_t.grid(column=1, row=0)
-        decryptbtn_t = ttk.Button(footbox_page1, width=8, text='解密')
+        decryptbtn_t = ttk.Button(footbox_page1, width=8, text='解密', command=self.decrypt_t)
         decryptbtn_t.grid(column=2, row=0)
         footbox_page1.grid(column=0, row=1, pady=10)
 
@@ -253,12 +256,18 @@ class MainWindows(tkinter.Tk):
         b64ed_aes_key = base64.b64encode(enc_aes_key).decode()
         b64ed_message = base64.b64encode(enc_message).decode()
         b64ed_sig = base64.b64encode(sig).decode()
-        final_message = f'{b64ed_aes_key}.{b64ed_message}.{b64ed_sig}'
+        final_message = f'{msg_prefix}{b64ed_aes_key}.{b64ed_message}.{b64ed_sig}{msg_suffix}'
         resultwindow = ResultWindow(final_message)
     
     def decrypt_t(self):
-        message = self.inputbox.get(index1='0.0', index2='end')[:-1].encode()
-
+        message = self.inputbox.get(index1='0.0', index2='end')[:-1].replace('\n', '')
+        message = re.search(r'(?<=-----BEGIN MESSAGE-----).*?(?=-----END MESSAGE-----)', message)
+        if not message: tkinter.messagebox.showwarning('Warning','密文解析失败'); return
+        b64ed_aes_key, b64ed_message, b64ed_sig = message.group().split('.')
+        enc_aes_key = base64.b64decode(b64ed_aes_key.encode())
+        enc_message = base64.b64decode(b64ed_message.encode())
+        print(supports_gui.rsa_decrypt(self.prikey, enc_message, enc_aes_key))
+        
 
 if __name__ == "__main__":
     app = MainWindows()

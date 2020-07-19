@@ -21,7 +21,7 @@ def aes_encrypt(_key: bytes, _data: bytes) -> bytes:
 
 def aes_decrypt(_key: bytes, _data: bytes) -> bytes:
     _cipher = AES.new(_key, AES.MODE_CBC, _key[0:16])
-    return pkcs7unpadding(_cipher.decrypt(_data), AES.block_size)
+    return pkcs7unpadding(_cipher.decrypt(_data))
 
 
 def gen_rsakey(_length: int, _passphrase: str) -> bytes:
@@ -77,16 +77,16 @@ def gen_database():
     _db.commit()
     _db.close()
 
-def add_userkey(_pubkey: bytes, _prikey: bytes, _describe: str, _db):
+def add_userkey(_prikey: bytes, _pubkey: bytes, _describe: str, _db):
     _cursor = _db.cursor()
     _cursor.execute(f"INSERT INTO UserKeys (PubKey, PriKey, Describe) \
 			      VALUES ('{_pubkey.decode()}', '{_prikey.decode()}', '{_describe}')")
     _db.commit()
 
-def add_pubkey(_pubkey: bytes, _name: str, _db):
+def add_pubkey(_pubkey: bytes, _describe: str, _db):
     _cursor = _db.cursor()
     _cursor.execute(f"INSERT INTO ThirdKeys (PubKey, Describe) \
-			      VALUES ('{_pubkey.decode()}', '{_name}')")
+			      VALUES ('{_pubkey.decode()}', '{_describe}')")
     _db.commit()
 
 def del_key(_id: int, _table: str, _db):
@@ -116,5 +116,8 @@ def get_thirdkey(_id: int, _db) -> bytes:
 
 # --------------------------------------------Debug--------------------------------------- #
 if __name__ == "__main__":
-    pass
+    database = sqlite3.connect('keys.db')
+    prikey, pubkey = gen_rsakey(1024, '')
+    add_userkey(prikey, pubkey, 'test', database)
+    add_pubkey(pubkey, 'test', database)
 
