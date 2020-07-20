@@ -8,3 +8,4 @@ Pipfile.lock
 requirements.txt
 Test
 keyring.db
+out.bin

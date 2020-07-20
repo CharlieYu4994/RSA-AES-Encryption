@@ -15,6 +15,11 @@
 
 	],
 	"settings": {
-		"python.pythonPath": "D:\\Envs\\PythonEnvs\\RSA-AES-Encryption-DTAo1RFq\\Scripts\\python.exe"
+		"python.pythonPath": "D:\\Envs\\PythonEnvs\\RSA-AES-Encryption-DTAo1RFq\\Scripts\\python.exe",
+		"workbench.editorAssociations": [{
+			"viewType":"hexEditor.hexedit",
+			"filenamePattern": "*.bin"
+		}],
+		"hexeditor.maxFileSize": 100
 	}
 }

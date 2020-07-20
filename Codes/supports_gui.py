@@ -13,7 +13,7 @@ def pkcs7padding(_data: bytes, _block_size: int) -> bytes:
 
 def pkcs7unpadding(_data: bytes) -> bytes:  # 去填充
     _length = len(_data)
-    return _data[0:_length - int(_data[-1])]
+    return _data[0:_length - int(_data[-1])] 
 
 def aes_encrypt(_key: bytes, _data: bytes, _pad=True) -> bytes:
     _cipher = AES.new(_key, AES.MODE_CBC, _key[0:16])
@@ -49,17 +49,17 @@ def composite_decrypt(_prikey, _data: bytes, _session_key: bytes) -> bytes:
     _session_key = rsa_decrypt(_prikey, _session_key)
     return aes_decrypt(_session_key, _data)
 
-def composite_encrypt(_pubkey, _data: bytes) -> bytes:
-    _session_key = get_random_bytes(16)
+def composite_encrypt(_pubkey, _data: bytes, _session_key=None) -> bytes:
+    _session_key = _session_key if _session_key else get_random_bytes(16)
     return rsa_encrypt(_pubkey, _session_key), aes_encrypt(_session_key, _data)
 
-def pss_sign(_prikey, _data: bytes) -> bytes:
-    _hash = SHA256.new(_data)
+def pss_sign(_prikey, _data: bytes, _hash=None) -> bytes:
+    _hash = _hash if _hash else SHA256.new(_data)
     return pss.new(_prikey).sign(_hash)
 
-def pss_verify(_pubkey, _data: bytes, _signature: bytes) -> bool:
+def pss_verify(_pubkey, _data: bytes, _signature: bytes, _hash=None) -> bool:
     _verifier = pss.new(_pubkey)
-    _hash = SHA256.new(_data)
+    _hash = _hash if _hash else SHA256.new(_data)
     try:
         _verifier.verify(_hash, _signature)
         return True
@@ -103,7 +103,7 @@ def get_keydict(_table: str, _db) -> dict:
     _keydict = dict()
     _cursor = _db.cursor()
     for row in _cursor.execute(f"SELECT ID, Describe FROM '{_table}'").fetchall():
-        _keydict[f"{row[1]} ({str(row[0])})"] = row[0]
+        _keydict[f'{row[1]} ({str(row[0])})'] = row[0]
     return _keydict
 
 def get_userkey(_id: int, _db) -> bytes:
@@ -119,17 +119,12 @@ def get_thirdkey(_id: int, _db) -> bytes:
 # -----------------------------------------Other Part------------------------------------- #
 def read_file(_path: str):
     BLOCK_SIZE = 1048576
-    with open(_path, "rb") as f:
+    with open(_path, 'rb') as f:
         while True:
             block = f.read(BLOCK_SIZE)
             if block: yield block, len(block) != BLOCK_SIZE
             else: return
 
 # --------------------------------------------Debug--------------------------------------- #
-if __name__ == "__main__":
-    key = b'\x19\xc9JV\t%*g\xfb\xe5\xd3\x82\xd0\xec5\x8c'
-    o = open('1.flac', 'wb')
-    for block, status in read_file('test.bin'):
-        print(status)
-        o.write(aes_decrypt(key, block, status))
-    o.close()
+if __name__ == '__main__':
+    pass
