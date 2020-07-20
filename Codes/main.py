@@ -163,34 +163,29 @@ class MainWindows(tkinter.Tk):
 
         dirbox = ttk.Frame(frame1)
         dir_l_i = ttk.Label(dirbox, text='文件路径:')
-        dir_l_i.grid(column=0, row=0)
+        dir_l_i.grid(column=0, row=0, pady=10)
         self.dir_e_i = ttk.Entry(dirbox, width=25)
-        self.dir_e_i.grid(column=1, row=0)
+        self.dir_e_i.grid(column=1, row=0, pady=10)
         dir_b_i = ttk.Button(dirbox, text='选择文件', width=8,\
             command=lambda:(self.dir_e_i.delete('0', 'end'), self.dir_e_i.insert('0',\
                 filedialog.askopenfilename(title='请选择文件'))))
-        dir_b_i.grid(column=2, row=0)
+        dir_b_i.grid(column=2, row=0, pady=10)
         dir_l_o = ttk.Label(dirbox, text='保存路径:')
-        dir_l_o.grid(column=0, row=1)
+        dir_l_o.grid(column=0, row=1, pady=10)
         self.dir_e_o = ttk.Entry(dirbox, width=25)
-        self.dir_e_o.grid(column=1, row=1)
-        self.dir_e_o.insert('0', './')
+        self.dir_e_o.grid(column=1, row=1, pady=10)
         dir_b_o = ttk.Button(dirbox, text='选择目录', width=8,\
             command=lambda:(self.dir_e_o.delete('0', 'end'), self.dir_e_o.insert('0',\
                 filedialog.askdirectory(title='请选择文件夹'))))
-        dir_b_o.grid(column=2, row=1)
-        dirbox.grid(column=0, row=0, padx=20, pady=20)
+        dir_b_o.grid(column=2, row=1, pady=10)
+        dirbox.grid(column=0, row=0, padx=20, pady=15)
 
         footbox_page2 = ttk.Frame(frame1)
-        progressbar_l = ttk.Label(footbox_page2, text='进度:')
-        progressbar_l.grid(column=0, row=0, pady=5)
-        self.progressbar = ttk.Progressbar(footbox_page2)
-        self.progressbar.grid(column=1, row=0, columnspan=19, sticky='ew', pady=5, padx=6)
         encrypt_b_file = ttk.Button(footbox_page2, width=20, text='加密', command=self.encrypt_file)
         encrypt_b_file.grid(column=0, columnspan=10, row=1, padx=5)
         decrypt_b_file = ttk.Button(footbox_page2, width=20, text='解密', command=self.decrypt_file)
         decrypt_b_file.grid(column=10, columnspan=10, row=1, padx=5)
-        footbox_page2.grid(column=0, row=1, pady=15)
+        footbox_page2.grid(column=0, row=1, pady=10)
 
         tabs.add(frame1, text='文件加/解密')
 #--------------------------------------------第三页------------------------------------------------#
@@ -239,8 +234,8 @@ class MainWindows(tkinter.Tk):
         tabs.grid(column=0, row=0)
     
     def getkeylist(self):
-        self.userkeydict = supports_gui.get_keydict('UserKeys', self.database)
-        self.thirdkeydict = supports_gui.get_keydict('ThirdKeys', self.database)
+        self.userkeydict = supports.get_keydict('UserKeys', self.database)
+        self.thirdkeydict = supports.get_keydict('ThirdKeys', self.database)
         self.userkeylist = list(self.userkeydict.keys())
         self.thirdkeylist = list(self.thirdkeydict.keys())
 
@@ -251,11 +246,11 @@ class MainWindows(tkinter.Tk):
     
     def select_userkey(self, _describe: str):
         _id = self.userkeydict[_describe]
-        _prikey_t, _pubkey_t = supports_gui.get_userkey(_id, self.database)
+        _prikey_t, _pubkey_t = supports.get_userkey(_id, self.database)
         for _ in range(5):
             _inputwindow = InputWindow()
             self.wait_window(_inputwindow)
-            _status, _prikey, _pubkey = supports_gui.load_key(_pubkey_t, _prikey_t, _inputwindow.password)
+            _status, _prikey, _pubkey = supports.load_key(_pubkey_t, _prikey_t, _inputwindow.password)
             if _status: self.prikey = _prikey; self.pubkey = _pubkey; break
             tkinter.messagebox.showwarning('Warning','密码错误')
         if not _status:
@@ -264,15 +259,15 @@ class MainWindows(tkinter.Tk):
     
     def select_thirdkey(self, _describe):
         _id = self.thirdkeydict[_describe]
-        self.thirdkey = supports_gui.load_key(supports_gui.get_thirdkey(_id, self.database))
+        self.thirdkey = supports.load_key(supports.get_thirdkey(_id, self.database))
 
     def keymanage(self):
         pass
 
     def encrypt_text(self):
         message = self.inputbox.get(index1='0.0', index2='end')[:-1].encode()
-        enc_aes_key, enc_message = supports_gui.composite_encrypt(self.thirdkey, message)
-        sig = supports_gui.pss_sign(self.prikey, message) if self.sign_check.get() else b'No sig'
+        enc_aes_key, enc_message = supports.composite_encrypt(self.thirdkey, message)
+        sig = supports.pss_sign(self.prikey, message) if self.sign_check.get() else b'No sig'
 
         b64ed_aes_key = base64.b64encode(enc_aes_key).decode()
         b64ed_message = base64.b64encode(enc_message).decode()
@@ -291,8 +286,8 @@ class MainWindows(tkinter.Tk):
         enc_message = base64.b64decode(b64ed_message.encode())
         sig = base64.b64decode(b64ed_sig.encode())
 
-        message = supports_gui.composite_decrypt(self.prikey, enc_message, enc_aes_key)
-        status = supports_gui.pss_verify(self.thirdkey, message, sig) if sig != b'No sig' else False
+        message = supports.composite_decrypt(self.prikey, enc_message, enc_aes_key)
+        status = supports.pss_verify(self.thirdkey, message, sig) if sig != b'No sig' else False
         resultwindow = ResultWindow(message, 1, status)
     
     def encrypt_file(self):
@@ -302,14 +297,14 @@ class MainWindows(tkinter.Tk):
         hasher = SHA256.new()
 
         file_info = aes_key + b'^&%&^' + os.path.basename(path_i).encode()
-        enc_file_info = supports_gui.rsa_encrypt(self.thirdkey, file_info)
+        enc_file_info = supports.rsa_encrypt(self.thirdkey, file_info)
 
         with open(f'{path_o}/out.bin', 'wb') as file_out:
             file_out.seek(500)
-            for block, status in supports_gui.read_file(path_i, 0):
+            for block, status in supports.read_file(path_i, 0):
                 hasher.update(block)
-                file_out.write(supports_gui.aes_encrypt(aes_key, block, status))
-            sig = supports_gui.pss_sign(self.prikey, None, hasher)
+                file_out.write(supports.aes_encrypt(aes_key, block, status))
+            sig = supports.pss_sign(self.prikey, None, hasher)
             final_file_info = base64.b64encode(enc_file_info) + b'.' + base64.b64encode(sig)
             file_out.seek(0, 0)
             file_out.write(str(len(final_file_info)).encode())
@@ -328,19 +323,19 @@ class MainWindows(tkinter.Tk):
 
         file_info = base64.b64decode(file_info.encode())
         sig = base64.b64decode(sig.encode())
-        aes_key, filename = supports_gui.rsa_decrypt(self.prikey, file_info).split(b'^&%&^')
+        aes_key, filename = supports.rsa_decrypt(self.prikey, file_info).split(b'^&%&^')
 
         with open(f'{path_o}/{filename.decode()}', 'wb') as file_out:
-            for enc_block, status in supports_gui.read_file(path_i, 500):
-                block = supports_gui.aes_decrypt(aes_key, enc_block, status)
+            for enc_block, status in supports.read_file(path_i, 500):
+                block = supports.aes_decrypt(aes_key, enc_block, status)
                 hasher.update(block)
                 file_out.write(block)
 
-        sig_status = supports_gui.pss_verify(self.pubkey, None, sig, hasher)
+        sig_status = supports.pss_verify(self.pubkey, None, sig, hasher)
         resultwindow = ResultWindow(f'文件路径为：{path_o}', 1, sig_status)
 
 
 if __name__ == '__main__':
-    if not os.path.exists('keyring.db'): supports_gui.gen_database()
+    if not os.path.exists('keyring.db'): supports.gen_database()
     app = MainWindows()
     app.mainloop()
