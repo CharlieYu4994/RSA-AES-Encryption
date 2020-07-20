@@ -318,13 +318,13 @@ class MainWindows(tkinter.Tk):
         path_o = self.dir_e_o.get()
         hasher = SHA256.new()
 
-        with open(path_i, 'rb') as file_in:
-            sign = file_in.read(3)
-            enc_file_info, sig = file_in.read(int(file_in.read(3).decode())).split(b'.')
-        
-        if sign != b'REF': tkinter.messagebox.showerror('Warning','文件解析失败'); return
-
         try:
+            with open(path_i, 'rb') as file_in:
+                sign = file_in.read(3)
+                enc_file_info, sig = file_in.read(int(file_in.read(3))).split(b'.')
+
+            if sign != b'REF': tkinter.messagebox.showerror('Warning','文件解析失败'); return
+
             enc_file_info = base64.b64decode(enc_file_info)
             sig = base64.b64decode(sig)
             file_info = supports.rsa_decrypt(self.prikey, enc_file_info)
