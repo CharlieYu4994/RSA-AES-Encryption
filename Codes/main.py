@@ -40,7 +40,7 @@ class InputWindow(tkinter.Toplevel):
         btn_box = ttk.Frame(self)
         o_btn = ttk.Button(btn_box, text='确定', width=16, command=lambda: self.submit(None))
         o_btn.grid(column=0, row=0, padx=12)        
-        c_btn = ttk.Button(btn_box, text='取消', width=16, command=lambda event: self.destroy())
+        c_btn = ttk.Button(btn_box, text='取消', width=16, command=lambda: self.destroy())
         c_btn.grid(column=1, row=0, padx=12)
         btn_box.grid(column=0, row=1, pady=10)
 
@@ -299,7 +299,7 @@ class MainWindows(tkinter.Tk):
         file_info = aes_key + b'^&%&^' + os.path.basename(path_i).encode()
         enc_file_info = supports.rsa_encrypt(self.thirdkey, file_info)
 
-        with open(f'{path_o}/out.bin', 'wb') as file_out:
+        with open(f'{path_o}/result.ref', 'wb') as file_out:
             file_out.seek(500)
             for block, status in supports.read_file(path_i, 0):
                 hasher.update(block)
@@ -307,8 +307,8 @@ class MainWindows(tkinter.Tk):
             sig = supports.pss_sign(self.prikey, None, hasher)
             final_file_info = base64.b64encode(enc_file_info) + b'.' + base64.b64encode(sig)
             file_out.seek(0, 0)
+            file_out.write(b'REF')
             file_out.write(str(len(final_file_info)).encode())
-            file_out.seek(3, 0)
             file_out.write(final_file_info)
         
         resultwindow = ResultWindow(f'文件路径为：{path_o}', 0)
@@ -319,11 +319,19 @@ class MainWindows(tkinter.Tk):
         hasher = SHA256.new()
 
         with open(path_i, 'rb') as file_in:
-            file_info, sig = file_in.read(int(file_in.read(3).decode())).decode().split('.')
+            sign = file_in.read(3)
+            enc_file_info, sig = file_in.read(int(file_in.read(3).decode())).split(b'.')
+        
+        if sign != b'REF': tkinter.messagebox.showerror('Warning','文件解析失败'); return
 
-        file_info = base64.b64decode(file_info.encode())
-        sig = base64.b64decode(sig.encode())
-        aes_key, filename = supports.rsa_decrypt(self.prikey, file_info).split(b'^&%&^')
+        try:
+            enc_file_info = base64.b64decode(enc_file_info)
+            sig = base64.b64decode(sig)
+            file_info = supports.rsa_decrypt(self.prikey, enc_file_info)
+        except Exception as E:
+            tkinter.messagebox.showerror('Warning','文件信息解密失败'); return
+
+        aes_key, filename = file_info.split(b'^&%&^')
 
         with open(f'{path_o}/{filename.decode()}', 'wb') as file_out:
             for enc_block, status in supports.read_file(path_i, 500):
