@@ -306,8 +306,10 @@ class MainWindows(tkinter.Tk):
                 file_out.write(supports.aes_encrypt(aes_key, block, status))
             sig = supports.pss_sign(self.prikey, None, hasher)
             final_file_info = base64.b64encode(enc_file_info) + b'.' + base64.b64encode(sig)
+
             file_out.seek(0, 0)
             file_out.write(b'REF')
+            file_out.write(hasher.digest())
             file_out.write(str(len(final_file_info)).encode())
             file_out.write(final_file_info)
         
@@ -321,9 +323,12 @@ class MainWindows(tkinter.Tk):
         try:
             with open(path_i, 'rb') as file_in:
                 sign = file_in.read(3)
+                file_hash = file_in.read(32)
                 enc_file_info, sig = file_in.read(int(file_in.read(3))).split(b'.')
 
-            if sign != b'REF': tkinter.messagebox.showerror('Warning','文件解析失败'); return
+            if sign != b'REF':
+                tkinter.messagebox.showerror('Warning','文件解析失败')
+                return
 
             enc_file_info = base64.b64decode(enc_file_info)
             sig = base64.b64decode(sig)
@@ -338,6 +343,10 @@ class MainWindows(tkinter.Tk):
                 block = supports.aes_decrypt(aes_key, enc_block, status)
                 hasher.update(block)
                 file_out.write(block)
+        
+        if file_hash != hasher.digest():
+            tkinter.messagebox.showwarning('Warning','文件损坏')
+            return
 
         sig_status = supports.pss_verify(self.pubkey, None, sig, hasher)
         resultwindow = ResultWindow(f'文件路径为：{path_o}', 1, sig_status)
