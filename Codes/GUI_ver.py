@@ -65,12 +65,13 @@ class ResultWindow(tkinter.Toplevel):
         self.title('Result')
         self.geometry(f'338x180+{dispalyw-150}+{displayh-200}')
         self.resizable(0, 0)
-        self.setup_result_box()
         if   _type == 0: self.setupUI_E()
         elif _type == 1: self.setupUI_D()
 
 
     def setupUI_E(self):
+        self.setup_result_box()
+
         clipbrd_btn = ttk.Button(self, text='复制', width=10, command=lambda: pyperclip.copy(self.result))
         clipbrd_btn.grid(column=0, row=1, pady=10)
 
@@ -78,6 +79,8 @@ class ResultWindow(tkinter.Toplevel):
         ok_btn.grid(column=1, row=1, pady=10)
     
     def setupUI_D(self):
+        self.setup_result_box()
+
         sign_l = ttk.Label(self, text='√ 签名有效' if self.sig_status else '× 签名无效')
         sign_l.grid(column=0, row=1)
 
@@ -164,8 +167,8 @@ class MainWindows(tkinter.Tk):
         self.dir_e_i = ttk.Entry(dirbox, width=25)
         self.dir_e_i.grid(column=1, row=0)
         dir_b_i = ttk.Button(dirbox, text='选择文件', width=8,\
-            command=lambda: self.dir_e_i.insert('0',\
-                filedialog.askopenfilename(title='请选择文件')))
+            command=lambda:(self.dir_e_i.delete('0', 'end'), self.dir_e_i.insert('0',\
+                filedialog.askopenfilename(title='请选择文件'))))
         dir_b_i.grid(column=2, row=0)
         dir_l_o = ttk.Label(dirbox, text='保存路径:')
         dir_l_o.grid(column=0, row=1)
@@ -173,8 +176,8 @@ class MainWindows(tkinter.Tk):
         self.dir_e_o.grid(column=1, row=1)
         self.dir_e_o.insert('0', './')
         dir_b_o = ttk.Button(dirbox, text='选择目录', width=8,\
-            command=lambda: self.dir_e_o.insert('0',\
-                filedialog.askdirectory(title='请选择文件夹')))
+            command=lambda:(self.dir_e_o.delete('0', 'end'), self.dir_e_o.insert('0',\
+                filedialog.askdirectory(title='请选择文件夹'))))
         dir_b_o.grid(column=2, row=1)
         dirbox.grid(column=0, row=0, padx=20, pady=20)
 
@@ -185,7 +188,7 @@ class MainWindows(tkinter.Tk):
         self.progressbar.grid(column=1, row=0, columnspan=19, sticky='ew', pady=5, padx=6)
         encrypt_b_file = ttk.Button(footbox_page2, width=20, text='加密', command=self.encrypt_file)
         encrypt_b_file.grid(column=0, columnspan=10, row=1, padx=5)
-        decrypt_b_file = ttk.Button(footbox_page2, width=20, text='解密')
+        decrypt_b_file = ttk.Button(footbox_page2, width=20, text='解密', command=self.decrypt_file)
         decrypt_b_file.grid(column=10, columnspan=10, row=1, padx=5)
         footbox_page2.grid(column=0, row=1, pady=15)
 
@@ -298,22 +301,44 @@ class MainWindows(tkinter.Tk):
         path_o = self.dir_e_o.get()
         hasher = SHA256.new()
 
-        message = aes_key + b'^&%&^' + os.path.basename(path_i).encode()
-        enc_message = supports_gui.rsa_encrypt(self.thirdkey, message)
+        file_info = aes_key + b'^&%&^' + os.path.basename(path_i).encode()
+        enc_file_info = supports_gui.rsa_encrypt(self.thirdkey, file_info)
 
-        with open(f'{path_o}/out.bin', 'wb') as out:
-            out.seek(500)
-            for block, status in supports_gui.read_file(path_i):
+        with open(f'{path_o}/out.bin', 'wb') as file_out:
+            file_out.seek(500)
+            for block, status in supports_gui.read_file(path_i, 0):
                 hasher.update(block)
-                out.write(supports_gui.aes_encrypt(aes_key, block, status))
-            out.seek(0,0)
+                file_out.write(supports_gui.aes_encrypt(aes_key, block, status))
             sig = supports_gui.pss_sign(self.prikey, None, hasher)
-            final_message = base64.b64encode(enc_message) + b'.' + base64.b64encode(sig)
-            out.write(final_message)
+            final_file_info = base64.b64encode(enc_file_info) + b'.' + base64.b64encode(sig)
+            file_out.seek(0, 0)
+            file_out.write(str(len(final_file_info)).encode())
+            file_out.seek(3, 0)
+            file_out.write(final_file_info)
+        
+        resultwindow = ResultWindow(f'文件路径为：{path_o}', 0)
     
     def decrypt_file(self):
-        pass
-        
+        path_i = self.dir_e_i.get()
+        path_o = self.dir_e_o.get()
+        hasher = SHA256.new()
+
+        with open(path_i, 'rb') as file_in:
+            file_info, sig = file_in.read(int(file_in.read(3).decode())).decode().split('.')
+
+        file_info = base64.b64decode(file_info.encode())
+        sig = base64.b64decode(sig.encode())
+        aes_key, filename = supports_gui.rsa_decrypt(self.prikey, file_info).split(b'^&%&^')
+
+        with open(f'{path_o}/{filename.decode()}', 'wb') as file_out:
+            for enc_block, status in supports_gui.read_file(path_i, 500):
+                block = supports_gui.aes_decrypt(aes_key, enc_block, status)
+                hasher.update(block)
+                file_out.write(block)
+
+        sig_status = supports_gui.pss_verify(self.pubkey, None, sig, hasher)
+        resultwindow = ResultWindow(f'文件路径为：{path_o}', 1, sig_status)
+
 
 if __name__ == '__main__':
     if not os.path.exists('keyring.db'): supports_gui.gen_database()

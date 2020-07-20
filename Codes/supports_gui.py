@@ -117,9 +117,10 @@ def get_thirdkey(_id: int, _db) -> bytes:
     return _cursor.fetchall()[0][0].encode()
 
 # -----------------------------------------Other Part------------------------------------- #
-def read_file(_path: str):
+def read_file(_path: str, _seek: int):
     BLOCK_SIZE = 1048576
     with open(_path, 'rb') as f:
+        if _seek: f.seek(_seek, 0)
         while True:
             block = f.read(BLOCK_SIZE)
             if block: yield block, len(block) != BLOCK_SIZE
