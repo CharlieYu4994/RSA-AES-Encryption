@@ -202,10 +202,12 @@ class MainWindows(tkinter.Tk):
         self.dir_e_save.grid(column=1, row=1, pady=5)
         userkey_ls_l = ttk.Label(footbox_page3, text='选择密钥    :')
         userkey_ls_l.grid(column=0, row=2, pady=5)
-        userkey_ls_l.bind('<Button-1>', self.freshkeylist)
+        userkey_ls_l.bind('<Button-1>',
+                          lambda event: self.freshkeylist)
         self.userkey_ls = ttk.Combobox(footbox_page3, width=30)
         self.userkey_ls['values'] = self.userkeylist
-        self.userkey_ls.bind('<<ComboboxSelected>>', lambda event: self.select_userkey(self.userkey_ls.get()))
+        self.userkey_ls.bind('<<ComboboxSelected>>',
+                             lambda event: self.select_userkey(self.userkey_ls.get()))
         self.userkey_ls.grid(column=1, row=2, pady=5)
         footbox_page3.grid(column=0, row=0, columnspan=10, padx=16, pady=15)
 
@@ -222,13 +224,15 @@ class MainWindows(tkinter.Tk):
         tabs.add(frame2, text='杂项')
 #--------------------------------------------标签栏------------------------------------------------#
         keybox = ttk.Frame(self)
-        prompt = ttk.Label(keybox, text='收/发件人:')
-        prompt.grid(column=0, row=0, sticky='w')
-        prompt.bind('<Button-1>', self.freshkeylist)
+        thirdkey_l = ttk.Label(keybox, text='收/发件人:')
+        thirdkey_l.grid(column=0, row=0, sticky='w')
+        thirdkey_l.bind('<Button-1>',
+                        lambda event: self.freshkeylist)
         self.thirdkey_ls = ttk.Combobox(keybox, width=11)
         self.thirdkey_ls['values'] = self.thirdkeylist
         self.thirdkey_ls.grid(column=1, row=0)
-        self.thirdkey_ls.bind('<<ComboboxSelected>>', lambda event: self.select_thirdkey(self.thirdkey_ls.get()))
+        self.thirdkey_ls.bind('<<ComboboxSelected>>',
+                              lambda event: self.select_thirdkey(self.thirdkey_ls.get()))
         keybox.grid(column=0, row=0, sticky='ne', padx=3, pady=1)
 
         tabs.grid(column=0, row=0)
@@ -239,7 +243,7 @@ class MainWindows(tkinter.Tk):
         self.userkeylist = list(self.userkeydict.keys())
         self.thirdkeylist = list(self.thirdkeydict.keys())
 
-    def freshkeylist(self, event):
+    def freshkeylist(self):
         self.getkeylist()
         self.pubkeyls['values'] = self.thirdkeylist
         self.prikeyls['values'] = self.userkeylist
@@ -327,8 +331,7 @@ class MainWindows(tkinter.Tk):
                 enc_file_info, sig = file_in.read(int(file_in.read(3))).split(b'.')
 
             if sign != b'REF':
-                tkinter.messagebox.showerror('Warning','文件解析失败')
-                return
+                tkinter.messagebox.showerror('Warning','文件解析失败'); return
 
             enc_file_info = base64.b64decode(enc_file_info)
             sig = base64.b64decode(sig)
@@ -345,8 +348,7 @@ class MainWindows(tkinter.Tk):
                 file_out.write(block)
         
         if file_hash != hasher.digest():
-            tkinter.messagebox.showwarning('Warning','文件损坏')
-            return
+            tkinter.messagebox.showwarning('Warning','文件损坏'); return
 
         sig_status = supports.pss_verify(self.pubkey, None, sig, hasher)
         resultwindow = ResultWindow(f'文件路径为：{path_o}', 1, sig_status)

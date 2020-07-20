@@ -79,6 +79,9 @@ def gen_database():
 				ID           INTEGER PRIMARY KEY,
 				PubKey       TEXT    NOT NULL,
 				Describe     CHAR(20)NOT NULL );""")
+    _cursor.execute("""CREATE TABLE Others(
+                ID           INTEGER PRIMARY KEY,
+                Settings     TEXT    NOT NULL)""")
     _db.commit()
     _db.close()
 
@@ -113,8 +116,14 @@ def get_userkey(_id: int, _db) -> bytes:
     return _prikey.encode(), _pubkey.encode()
 
 def get_thirdkey(_id: int, _db) -> bytes:
-    _cursor = _db.cursor().execute(f"SELECT PubKey FROM ThirdKeys WHERE ID = '{_id}'")
+    _cursor = _db.cursor()
+    _cursor.execute(f"SELECT PubKey FROM ThirdKeys WHERE ID = '{_id}'")
     return _cursor.fetchall()[0][0].encode()
+
+def get_cfg(_db):
+    _cursor = _db.cursor()
+    _cursor.execute(f"SELECT Settings FROM Others WHERE ID = '{_id}'")
+    return _cursor.fet
 
 # -----------------------------------------Other Part------------------------------------- #
 def read_file(_path: str, _seek: int):
