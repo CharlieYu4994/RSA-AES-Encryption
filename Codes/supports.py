@@ -1,215 +1,131 @@
-# -*- coding: utf-8 -*-
-from os import mkdir, listdir
-from os.path import splitext, basename
-import rsa
-from base64 import b64decode, b64encode
-from win32 import win32clipboard
-from win32.lib import win32con
-from Crypto.Cipher import AES
-import requests
-import json
-from random import sample
+from Crypto.Cipher import AES, PKCS1_OAEP
+from Crypto.PublicKey import RSA
+from Crypto.Random import get_random_bytes
+from Crypto.Signature import pss
+from Crypto.Hash import SHA256
+import sqlite3
 
 
-# ----------------------------------伪宏定义------------------------------------ #
-prefix_m = b'-----BEGIN RSA MESSAGE-----\n'
-suffix_m = b'\n-----END RSA MESSAGE-----\n'
-prefix_s = b'-----BEGIN Signature-----\n'
-suffix_s = b'\n-----END Signature-----\n'
-prefix_f = b'-----BEGIN AES KEY-----\n'
-suffix_f = b'\n-----END AES KEY-----\n'
-encryption_method = 'SHA-1'
-bs = AES.block_size
-keytmp = 'f5nd1N0kX7ibEJy3ULsMzKCRVrogqe6v4uHt9cSWlhY8QT2xIwBFPZGapjmADOJh\
-AJCz9wLNvq8DU5joeuWZxtYbsGcKXPQH1Rgpr26k7SliFady3nEOMI04BVTfmhUI'
+# ------------------------------------BASIC Encrypt Part---------------------------------- #
+def pkcs7padding(_data: bytes, _block_size: int) -> bytes:
+    _padding_size = _block_size - len(_data) % _block_size
+    return _data + chr(_padding_size).encode() * _padding_size
 
+def pkcs7unpadding(_data: bytes) -> bytes:  # 去填充
+    _length = len(_data)
+    return _data[0:_length - int(_data[-1])] 
 
-# ---------------------------------AES Parts-------------------------------- #
-def formatkey(key): # 把密码填充为 16位 的整数倍
-    while len(key) % 16 != 0:
-        key += '0'
-    return key
+def aes_encrypt(_key: bytes, _data: bytes, _pad=True) -> bytes:
+    _cipher = AES.new(_key, AES.MODE_CBC, _key[0:16])
+    return _cipher.encrypt(pkcs7padding(_data, AES.block_size) if _pad else _data)
 
+def aes_decrypt(_key: bytes, _data: bytes, _pad=True) -> bytes:
+    _cipher = AES.new(_key, AES.MODE_CBC, _key[0:16])
+    return pkcs7unpadding(_cipher.decrypt(_data)) if _pad else _cipher.decrypt(_data)
 
-def pkcs7padding(data): # 使用 pkcs7 填充数据
-    padding_size = bs - len(data) % bs
-    return data + chr(padding_size).encode() * padding_size
+def rsa_decrypt(_prikey, _data: bytes) -> bytes:
+    _cipher = PKCS1_OAEP.new(_prikey)
+    return _cipher.decrypt(_data)
 
+def rsa_encrypt(_pubkey, _data: bytes) -> bytes:
+    _cipher = PKCS1_OAEP.new(_pubkey)
+    return _cipher.encrypt(_data)
 
-def pkcs7unpadding(data): # 去填充
-    length = len(data)
-    return data[0:length - int(data[-1])]
+def gen_rsakey(_length: int, _passphrase: str) -> bytes:
+    _key = RSA.generate(_length)
+    return _key.export_key(passphrase=_passphrase if _passphrase else None),\
+           _key.publickey().export_key()
 
+def load_key(_pubkey: bytes, _prikey=None, _passphrase=None):
+    if _prikey:
+        try:
+            _pubkey = RSA.import_key(_pubkey)
+            _prikey = RSA.import_key(_prikey, passphrase=_passphrase if _passphrase else None)
+        except Exception as E: return False, str(E), ''
+        else: return True, _prikey, _pubkey
+    else: return RSA.import_key(_pubkey)
 
-def aes_encrypt(key, content): # 使用 AES 加密
-    key_bytes = bytes(key, encoding='utf-8')
-    iv = key[0:16].encode()
-    cipher = AES.new(key_bytes, AES.MODE_CBC, iv)
-    content_padding = pkcs7padding(content)
-    encrypt_bytes = cipher.encrypt(content_padding)
-    result = b64encode(encrypt_bytes)
-    return result
+def composite_decrypt(_prikey, _data: bytes, _session_key: bytes) -> bytes:
+    _session_key = rsa_decrypt(_prikey, _session_key)
+    return aes_decrypt(_session_key, _data)
 
+def composite_encrypt(_pubkey, _data: bytes, _session_key=None) -> bytes:
+    _session_key = _session_key if _session_key else get_random_bytes(16)
+    return rsa_encrypt(_pubkey, _session_key), aes_encrypt(_session_key, _data)
 
-def aes_decrypt(key, content): # 解密
-    key_bytes = bytes(key, encoding='utf-8')
-    iv = key[0:16].encode()
-    cipher = AES.new(key_bytes, AES.MODE_CBC, iv)
-    encrypt_bytes = b64decode(content)
-    decrypt_bytes = cipher.decrypt(encrypt_bytes)
-    result = pkcs7unpadding(decrypt_bytes)
-    return result
+def pss_sign(_prikey, _data: bytes, _hash=None) -> bytes:
+    _hash = _hash if _hash else SHA256.new(_data)
+    return pss.new(_prikey).sign(_hash)
 
-
-def changepassword(data, password):
-    if len(password) > 0:
-        password = formatkey(password)
-        data = aes_encrypt(password, data)
-    return data
-
-
-# --------------------------------RSA Parts----------------------------------#
-def genkeys(password, keylen=2048):
-    _pubkey, _privkey = rsa.newkeys(keylen)
-    if len(password) > 0:
-        password = formatkey(password)
-        _privkey = aes_encrypt(password, _privkey.save_pkcs1())
-    else:
-        _privkey = _privkey.save_pkcs1()
-    return _privkey, _pubkey.save_pkcs1()
-
-
-def decrypt_t(privkey, pubkey_t, text):
-    third = rsa.PublicKey.load_pkcs1(pubkey_t)
-    temp = text.split('\n')
-    if not len(temp) > 2: return -1, ''
-
-    crypto = b64decode(temp[1])
-    try: message = rsa.decrypt(crypto, privkey)
-    except rsa.pkcs1.DecryptionError: return -2, ''
-    else: message = message.decode('utf-8')
-
-    if len(temp) >= 5:
-        signature = b64decode(temp[4])
-        try: method_name = rsa.verify(message.encode('utf-8'), signature, third)
-        except rsa.pkcs1.VerificationError: return 1, message
-        else: return 0, message
-    else: return 2, message
-
-
-def encrypt_t(privkey, pubkey_t, message, need_sig):
-    third = rsa.PublicKey.load_pkcs1(pubkey_t)
-    ciphertext = prefix_m + b64encode(rsa.encrypt(message.encode('utf-8'), third)) + suffix_m
-
-    if need_sig:
-        signature = b64encode(rsa.sign(message.encode('utf-8'), privkey, encryption_method))
-        ciphertext = ciphertext + prefix_s + signature + suffix_s
-
-    ciphertext = ciphertext.decode()
-    return True, ciphertext
-
-
-def decrypt_f(prikey, pubkey_t, filename):
-    with open(f'./ResultFile/{filename}.pas', 'r') as f:
-        code, data = decrypt_t(prikey, pubkey_t, f.read())
-    if code < 0: return code, ''
-    aes_key, _filename = data.split('&^&')[0:2]
+def pss_verify(_pubkey, _data: bytes, _signature: bytes, _hash=None) -> bool:
+    _verifier = pss.new(_pubkey)
+    _hash = _hash if _hash else SHA256.new(_data)
     try:
-        with open(f'./ResultFile/{filename}.rsa', 'rb') as f:
-            f_data = aes_decrypt(aes_key, f.read())
-    except: return -3, ''
-    else:
-        with open(f'./ResultFile/{_filename}', 'wb') as f:
-            f.write(f_data)
-        return code, _filename
+        _verifier.verify(_hash, _signature)
+        return True
+    except Exception as E:
+        return False
 
+# ---------------------------------------Database Part------------------------------------ #
+def gen_database():
+    _db = sqlite3.connect('keyring.db')
+    _cursor = _db.cursor()
+    _cursor.execute("""CREATE TABLE UserKeys(
+				ID           INTEGER PRIMARY KEY,
+				PubKey       TEXT    NOT NULL,
+				PriKey       TEXT    NOT NULL,
+				Describe     CHAR(50)         );""")
+    _cursor.execute("""CREATE TABLE ThirdKeys(
+				ID           INTEGER PRIMARY KEY,
+				PubKey       TEXT    NOT NULL,
+				Describe     CHAR(20)NOT NULL );""")
+    _db.commit()
+    _db.close()
 
-def encrypt_f(prikey, pubkey_t, path, resultname): # preview
-    aes_key = ''.join(sample(keytmp, 32))
-    with open(path, 'rb') as f:
-        e_f = aes_encrypt(aes_key, f.read())
-    with open(f'./ResultFile/{resultname}.rsa', 'wb') as f:
-        f.write(e_f)
-    _, data = encrypt_t(prikey, pubkey_t, f'{aes_key}&^&{basename(path)}', True)
-    with open(f'./ResultFile/{resultname}.pas', 'w') as f:
-        f.write(data)
-    return True
+def add_userkey(_prikey: bytes, _pubkey: bytes, _describe: str, _db):
+    _cursor = _db.cursor()
+    _cursor.execute(f"INSERT INTO UserKeys (PubKey, PriKey, Describe) \
+			      VALUES ('{_pubkey.decode()}', '{_prikey.decode()}', '{_describe}')")
+    _db.commit()
 
+def add_pubkey(_pubkey: bytes, _describe: str, _db):
+    _cursor = _db.cursor()
+    _cursor.execute(f"INSERT INTO ThirdKeys (PubKey, Describe) \
+			      VALUES ('{_pubkey.decode()}', '{_describe}')")
+    _db.commit()
 
-# ------------------------------CoffeeKeys Parts---------------------------- #
-def get_pubkey(site, mail):
-    apiroot = '/api/searchKey?mail='
-    try: req = requests.get(f'https://{site}/api/searchKey?mail={mail}')
-    except Exception as E: return False, str(E), ''
-    else: status, data = req.json()['status'], req.json()['data']
-    if status:
-        name = data['name']
-        pubkey = data['pubkey'].replace('\r\n', '\n')
-        return True, name, pubkey
-    else: return False, '', ''
+def del_key(_id: int, _table: str, _db):
+    _cursor = _db.cursor()
+    _cursor.execute(f"DELETE FROM '{_table}' WHERE id = {_id}")
+    _db.commit()
 
+def get_keydict(_table: str, _db) -> dict:
+    _keydict = dict()
+    _cursor = _db.cursor()
+    for row in _cursor.execute(f"SELECT ID, Describe FROM '{_table}'").fetchall():
+        _keydict[f'{row[1]} ({str(row[0])})'] = row[0]
+    return _keydict
 
-# --------------------------------Config Parts------------------------------ #
-def load_cfg(path):
-    with open(path, 'r') as config_file:
-        contents = config_file.read()
-    config = json.loads(contents)
-    return config
+def get_userkey(_id: int, _db) -> bytes:
+    _cursor = _db.cursor()
+    _pubkey, _prikey = _cursor.execute(f"SELECT PubKey, PriKey FROM UserKeys \
+                                         WHERE ID = '{_id}'").fetchall()[0]
+    return _prikey.encode(), _pubkey.encode()
 
+def get_thirdkey(_id: int, _db) -> bytes:
+    _cursor = _db.cursor().execute(f"SELECT PubKey FROM ThirdKeys WHERE ID = '{_id}'")
+    return _cursor.fetchall()[0][0].encode()
 
-def gen_cfg(path, site, prikey, pubkey_path, result_path):
-    _json = json.dumps({
-        'siteroot': site,
-        'pubkeys': pubkey_path,
-        'results': result_path,
-        'defaultkey': prikey,
-        'prikeys': []
-    }, indent=4)
-    with open(path, 'wb') as f:
-        f.write(_json.encode())
+# -----------------------------------------Other Part------------------------------------- #
+def read_file(_path: str, _seek: int):
+    BLOCK_SIZE = 1048576
+    with open(_path, 'rb') as f:
+        if _seek: f.seek(_seek, 0)
+        while True:
+            block = f.read(BLOCK_SIZE)
+            if block: yield block, len(block) != BLOCK_SIZE
+            else: return
 
-
-# -----------------------------------杂 项------------------------------------ #
-def load_prikey(prikey, password):
-    if len(password) > 0:
-        password = formatkey(password)
-        try: prikey = aes_decrypt(password, prikey)
-        except Exception as E: return False, str(E)
-    return True, rsa.PrivateKey.load_pkcs1(prikey)
-
-def get_text():
-    status = True
-    win32clipboard.OpenClipboard()
-    try: text = win32clipboard.GetClipboardData(win32con.CF_UNICODETEXT)
-    except Exception as E: text = str(E); status = False
-    finally: win32clipboard.CloseClipboard()
-    return True if status else False, text
-
-
-def set_text(text):
-    win32clipboard.OpenClipboard()
-    win32clipboard.EmptyClipboard()
-    win32clipboard.SetClipboardData(win32con.CF_OEMTEXT, text)
-    win32clipboard.CloseClipboard()
-
-
-def find(suffix, path):
-    filelist = list()
-    try: files = listdir(path)
-    except FileNotFoundError:
-        mkdir(path)
-        files = listdir(path)
-    for filename in files:
-        if splitext(filename)[1] == suffix:
-            path = path + filename
-            name = splitext(filename)[0]
-            filelist.append({
-                'name': name,
-                'path': path
-            })
-    return filelist
-
-
-# ----------------------------------Debug------------------------------------#
+# --------------------------------------------Debug--------------------------------------- #
 if __name__ == '__main__':
     pass

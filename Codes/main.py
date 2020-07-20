@@ -1,159 +1,346 @@
-from os.path import exists
-from os import mkdir, system
-import supports
-from sys import exit
-import json
+import tkinter, supports, sqlite3, pyperclip, re
+from Crypto.Random import get_random_bytes
+from Crypto.Hash import SHA256
+from tkinter.simpledialog import askstring
+from tkinter import scrolledtext, filedialog, ttk
+import base64, os
 
-modes = \
-'''\
-[0] 解密文本        [1] 加密文本
-[2] 解密文件        [3] 加密文件
-[4] 查找公钥        [5] 重载密钥列表
-[6] 修改配置        [7] 增加私钥(#TODO)
-[8] 退出程序
-
-请输入模式>>>\
-'''
-
-def check_self_pem(): # 检查是否有密钥和配置文件 #MARK01
-    exist_cfg = exists('Config.json')
-    exist_pub = exists('public.pem')
-    if not exist_pub or not exist_cfg: return False
-    else: return True
+msg_prefix = '-----BEGIN MESSAGE-----\n'
+msg_suffix = '\n-----END MESSAGE-----'
 
 
-def find_pubkeys(): #MARK02
-    key_list = supports.find('.pem', pubkey_dir)
-    key_list.insert(0, {
-        'name': 'Yourself',
-        'path': './public.pem'})
-    return key_list
+class InputWindow(tkinter.Toplevel):
+    '''
+    密码输入窗口
+    '''
+    
+    password = None
+
+    def __init__(self):
+        super().__init__()
+        displayh = self.winfo_screenheight() // 2
+        dispalyw = self.winfo_screenwidth() // 2
+        self.protocol('WM_DELETE_WINDOW', lambda: self.destroy())
+        self.title('Password')
+        self.geometry(f'300x100+{dispalyw-150}+{displayh-100}')
+        self.resizable(0, 0)
+        self.setupUI()
+        self.password_e.focus_set()
+
+    def setupUI(self):
+        password_box = ttk.Frame(self)
+        password_l = ttk.Label(password_box, text='密码  :')
+        password_l.grid(column=0, row=0)
+        self.password_e = ttk.Entry(password_box, width=32)
+        self.password_e.grid(column=1, row=0)
+        self.password_e['show'] = '*'
+        self.password_e.bind('<Return>', self.submit)
+        password_box.grid(column=0, row=0, padx=15, pady=15)
+
+        btn_box = ttk.Frame(self)
+        o_btn = ttk.Button(btn_box, text='确定', width=16, command=lambda: self.submit(None))
+        o_btn.grid(column=0, row=0, padx=12)        
+        c_btn = ttk.Button(btn_box, text='取消', width=16, command=lambda event: self.destroy())
+        c_btn.grid(column=1, row=0, padx=12)
+        btn_box.grid(column=0, row=1, pady=10)
+
+    def submit(self, event):
+        self.password = self.password_e.get()
+        self.destroy()
 
 
-def print_pubkey(keylist, _prompt): # 打印公钥列表，并让用户选择
-    while True:
-        for _index in range(len(keylist)):
-            print(f'[{_index}] {keylist[_index]["name"]}')
-        try:
-            index = int(input(_prompt))
-            with open(keylist[index]['path'], "rb") as f:
-                third = f.read()
-        except Exception as E: input('输入错误，按回车以继续'); system('cls')
-        else: return third
+class ResultWindow(tkinter.Toplevel):
+    '''
+    结果显示窗口
+    '''
+
+    result = ''
+
+    def __init__(self, _result: str, _type: int, _sig_status=True):
+        super().__init__()
+        displayh = self.winfo_screenheight() // 2
+        dispalyw = self.winfo_screenwidth() // 2
+        self.result = _result
+        self.sig_status = _sig_status
+        self.title('Result')
+        self.geometry(f'338x180+{dispalyw-150}+{displayh-200}')
+        self.resizable(0, 0)
+        if   _type == 0: self.setupUI_E()
+        elif _type == 1: self.setupUI_D()
+
+
+    def setupUI_E(self):
+        self.setup_result_box()
+
+        clipbrd_btn = ttk.Button(self, text='复制', width=10, command=lambda: pyperclip.copy(self.result))
+        clipbrd_btn.grid(column=0, row=1, pady=10)
+
+        ok_btn = ttk.Button(self, text='确定', width=10, command=lambda: self.destroy())
+        ok_btn.grid(column=1, row=1, pady=10)
+    
+    def setupUI_D(self):
+        self.setup_result_box()
+
+        sign_l = ttk.Label(self, text='√ 签名有效' if self.sig_status else '× 签名无效')
+        sign_l.grid(column=0, row=1)
+
+        ok_btn = ttk.Button(self, text='确定', width=10, command=lambda: self.destroy())
+        ok_btn.grid(column=1, row=1, pady=10)
+    
+    def setup_result_box(self):
+        textbox = scrolledtext.ScrolledText(self, width=45, height=10)
+        textbox.grid(column=0, row=0, columnspan=2)
+        textbox.insert('0.0', self.result)
+
+
+class KeyManage(tkinter.Toplevel):
+    '''
+    密钥管理窗口
+    '''
+
+    database = sqlite3.connect('keyring.db')
+
+    def __init__(self):
+        super().__init__()
+        self.title('KeyManager')
+        self.geometry('200x200')
+        self.resizable(0, 0)
+        self.setupUI()
+
+    def setupUI(self):
+
+        pass
+
+
+class MainWindows(tkinter.Tk):
+    '''
+    主入口
+    '''
+
+    database = sqlite3.connect('keyring.db')
+    thirdkeydict = dict()
+    userkeydict = dict()
+    thirdkeylist = list()
+    userkeylist = list()
+    prikey = pubkey = thirdkey = None
+
+    def __init__(self):
+        super().__init__()
+        self.title('RSA&AES Encryption')
+        self.geometry('345x205')
+        self.resizable(0, 0)
+        self.getkeylist()
+        self.setupUI()
+        if self.thirdkeylist:
+            self.select_thirdkey(self.thirdkeylist[0])
+            self.thirdkey_ls.current(0)
+        if self.userkeylist:
+            self.select_userkey(self.userkeylist[0])
+            self.userkey_ls.current(0)
+
+    def setupUI(self):
+        tabs = ttk.Notebook(self)
+
+#--------------------------------------------第一页------------------------------------------------#
+        frame0 = ttk.Frame(tabs)
+
+        self.inputbox = scrolledtext.ScrolledText(frame0, width=46, height=10)
+        self.inputbox.grid(column=0, row=0)
+
+        footbox_page1 = ttk.Frame(frame0)
+        self.sign_check = tkinter.BooleanVar()
+        signcheck = ttk.Checkbutton(footbox_page1, text='签名', variable=self.sign_check)
+        signcheck.grid(column=0, row=0, padx=20)
+        encrypt_b_text = ttk.Button(footbox_page1, width=8, text='加密', command=self.encrypt_text)
+        encrypt_b_text.grid(column=1, row=0)
+        decrypt_b_text = ttk.Button(footbox_page1, width=8, text='解密', command=self.decrypt_text)
+        decrypt_b_text.grid(column=2, row=0)
+        footbox_page1.grid(column=0, row=1, pady=10)
+
+        tabs.add(frame0, text='文本加/解密')
+#--------------------------------------------第二页------------------------------------------------#
+        frame1 = ttk.Frame(tabs)
+
+        dirbox = ttk.Frame(frame1)
+        dir_l_i = ttk.Label(dirbox, text='文件路径:')
+        dir_l_i.grid(column=0, row=0)
+        self.dir_e_i = ttk.Entry(dirbox, width=25)
+        self.dir_e_i.grid(column=1, row=0)
+        dir_b_i = ttk.Button(dirbox, text='选择文件', width=8,\
+            command=lambda:(self.dir_e_i.delete('0', 'end'), self.dir_e_i.insert('0',\
+                filedialog.askopenfilename(title='请选择文件'))))
+        dir_b_i.grid(column=2, row=0)
+        dir_l_o = ttk.Label(dirbox, text='保存路径:')
+        dir_l_o.grid(column=0, row=1)
+        self.dir_e_o = ttk.Entry(dirbox, width=25)
+        self.dir_e_o.grid(column=1, row=1)
+        self.dir_e_o.insert('0', './')
+        dir_b_o = ttk.Button(dirbox, text='选择目录', width=8,\
+            command=lambda:(self.dir_e_o.delete('0', 'end'), self.dir_e_o.insert('0',\
+                filedialog.askdirectory(title='请选择文件夹'))))
+        dir_b_o.grid(column=2, row=1)
+        dirbox.grid(column=0, row=0, padx=20, pady=20)
+
+        footbox_page2 = ttk.Frame(frame1)
+        progressbar_l = ttk.Label(footbox_page2, text='进度:')
+        progressbar_l.grid(column=0, row=0, pady=5)
+        self.progressbar = ttk.Progressbar(footbox_page2)
+        self.progressbar.grid(column=1, row=0, columnspan=19, sticky='ew', pady=5, padx=6)
+        encrypt_b_file = ttk.Button(footbox_page2, width=20, text='加密', command=self.encrypt_file)
+        encrypt_b_file.grid(column=0, columnspan=10, row=1, padx=5)
+        decrypt_b_file = ttk.Button(footbox_page2, width=20, text='解密', command=self.decrypt_file)
+        decrypt_b_file.grid(column=10, columnspan=10, row=1, padx=5)
+        footbox_page2.grid(column=0, row=1, pady=15)
+
+        tabs.add(frame1, text='文件加/解密')
+#--------------------------------------------第三页------------------------------------------------#
+        frame2 = ttk.Frame(tabs)
+
+        footbox_page3 = ttk.Frame(frame2)
+        url_l_cfg = ttk.Label(footbox_page3, text='服务器 URL:')
+        url_l_cfg.grid(column=0, row=0, pady=5)
+        self.url_e_cfg = ttk.Entry(footbox_page3, width=32)
+        self.url_e_cfg.grid(column=1, row=0, pady=5)
+        dir_l_save = ttk.Label(footbox_page3, text='保存路径    :')
+        dir_l_save.grid(column=0, row=1, pady=5)
+        self.dir_e_save = ttk.Entry(footbox_page3, width=32)
+        self.dir_e_save.grid(column=1, row=1, pady=5)
+        userkey_ls_l = ttk.Label(footbox_page3, text='选择密钥    :')
+        userkey_ls_l.grid(column=0, row=2, pady=5)
+        userkey_ls_l.bind('<Button-1>', self.freshkeylist)
+        self.userkey_ls = ttk.Combobox(footbox_page3, width=30)
+        self.userkey_ls['values'] = self.userkeylist
+        self.userkey_ls.bind('<<ComboboxSelected>>', lambda event: self.select_userkey(self.userkey_ls.get()))
+        self.userkey_ls.grid(column=1, row=2, pady=5)
+        footbox_page3.grid(column=0, row=0, columnspan=10, padx=16, pady=15)
+
+        save_btn = ttk.Button(frame2, width=8, text='保存')
+        save_btn.grid(column=9, row=1)
+
+        btn_box = ttk.Frame(frame2)
+        pubkey_btn = ttk.Button(btn_box, width=8, text='导入公钥')
+        pubkey_btn.grid(column=0, row=0, padx=8)
+        prikey_btn = ttk.Button(btn_box, width=8, text='管理密钥', command=self.keymanage)
+        prikey_btn.grid(column=1, row=0, padx=8)
+        btn_box.grid(column=0, columnspan=9, row=1, pady=10)
+
+        tabs.add(frame2, text='杂项')
+#--------------------------------------------标签栏------------------------------------------------#
+        keybox = ttk.Frame(self)
+        prompt = ttk.Label(keybox, text='收/发件人:')
+        prompt.grid(column=0, row=0, sticky='w')
+        prompt.bind('<Button-1>', self.freshkeylist)
+        self.thirdkey_ls = ttk.Combobox(keybox, width=11)
+        self.thirdkey_ls['values'] = self.thirdkeylist
+        self.thirdkey_ls.grid(column=1, row=0)
+        self.thirdkey_ls.bind('<<ComboboxSelected>>', lambda event: self.select_thirdkey(self.thirdkey_ls.get()))
+        keybox.grid(column=0, row=0, sticky='ne', padx=3, pady=1)
+
+        tabs.grid(column=0, row=0)
+    
+    def getkeylist(self):
+        self.userkeydict = supports_gui.get_keydict('UserKeys', self.database)
+        self.thirdkeydict = supports_gui.get_keydict('ThirdKeys', self.database)
+        self.userkeylist = list(self.userkeydict.keys())
+        self.thirdkeylist = list(self.thirdkeydict.keys())
+
+    def freshkeylist(self, event):
+        self.getkeylist()
+        self.pubkeyls['values'] = self.thirdkeylist
+        self.prikeyls['values'] = self.userkeylist
+    
+    def select_userkey(self, _describe: str):
+        _id = self.userkeydict[_describe]
+        _prikey_t, _pubkey_t = supports_gui.get_userkey(_id, self.database)
+        for _ in range(5):
+            _inputwindow = InputWindow()
+            self.wait_window(_inputwindow)
+            _status, _prikey, _pubkey = supports_gui.load_key(_pubkey_t, _prikey_t, _inputwindow.password)
+            if _status: self.prikey = _prikey; self.pubkey = _pubkey; break
+            tkinter.messagebox.showwarning('Warning','密码错误')
+        if not _status:
+            tkinter.messagebox.showerror('Error','密码五次输入错误，请重新选择')
+            self.userkey_ls.delete(first='0', last='end')
+    
+    def select_thirdkey(self, _describe):
+        _id = self.thirdkeydict[_describe]
+        self.thirdkey = supports_gui.load_key(supports_gui.get_thirdkey(_id, self.database))
+
+    def keymanage(self):
+        pass
+
+    def encrypt_text(self):
+        message = self.inputbox.get(index1='0.0', index2='end')[:-1].encode()
+        enc_aes_key, enc_message = supports_gui.composite_encrypt(self.thirdkey, message)
+        sig = supports_gui.pss_sign(self.prikey, message) if self.sign_check.get() else b'No sig'
+
+        b64ed_aes_key = base64.b64encode(enc_aes_key).decode()
+        b64ed_message = base64.b64encode(enc_message).decode()
+        b64ed_sig = base64.b64encode(sig).decode()
+
+        final_message = f'{msg_prefix}{b64ed_aes_key}.{b64ed_message}.{b64ed_sig}{msg_suffix}'
+        resultwindow = ResultWindow(final_message, 0)
+    
+    def decrypt_text(self):
+        message_t = self.inputbox.get(index1='0.0', index2='end')[:-1].replace('\n', '')
+        message_t = re.search(r'(?<=-----BEGIN MESSAGE-----).*?(?=-----END MESSAGE-----)', message_t)
+        if not message_t: tkinter.messagebox.showwarning('Warning','密文解析失败'); return
+
+        b64ed_aes_key, b64ed_message, b64ed_sig = message_t.group().split('.')
+        enc_aes_key = base64.b64decode(b64ed_aes_key.encode())
+        enc_message = base64.b64decode(b64ed_message.encode())
+        sig = base64.b64decode(b64ed_sig.encode())
+
+        message = supports_gui.composite_decrypt(self.prikey, enc_message, enc_aes_key)
+        status = supports_gui.pss_verify(self.thirdkey, message, sig) if sig != b'No sig' else False
+        resultwindow = ResultWindow(message, 1, status)
+    
+    def encrypt_file(self):
+        aes_key = get_random_bytes(16)
+        path_i = self.dir_e_i.get()
+        path_o = self.dir_e_o.get()
+        hasher = SHA256.new()
+
+        file_info = aes_key + b'^&%&^' + os.path.basename(path_i).encode()
+        enc_file_info = supports_gui.rsa_encrypt(self.thirdkey, file_info)
+
+        with open(f'{path_o}/out.bin', 'wb') as file_out:
+            file_out.seek(500)
+            for block, status in supports_gui.read_file(path_i, 0):
+                hasher.update(block)
+                file_out.write(supports_gui.aes_encrypt(aes_key, block, status))
+            sig = supports_gui.pss_sign(self.prikey, None, hasher)
+            final_file_info = base64.b64encode(enc_file_info) + b'.' + base64.b64encode(sig)
+            file_out.seek(0, 0)
+            file_out.write(str(len(final_file_info)).encode())
+            file_out.seek(3, 0)
+            file_out.write(final_file_info)
+        
+        resultwindow = ResultWindow(f'文件路径为：{path_o}', 0)
+    
+    def decrypt_file(self):
+        path_i = self.dir_e_i.get()
+        path_o = self.dir_e_o.get()
+        hasher = SHA256.new()
+
+        with open(path_i, 'rb') as file_in:
+            file_info, sig = file_in.read(int(file_in.read(3).decode())).decode().split('.')
+
+        file_info = base64.b64decode(file_info.encode())
+        sig = base64.b64decode(sig.encode())
+        aes_key, filename = supports_gui.rsa_decrypt(self.prikey, file_info).split(b'^&%&^')
+
+        with open(f'{path_o}/{filename.decode()}', 'wb') as file_out:
+            for enc_block, status in supports_gui.read_file(path_i, 500):
+                block = supports_gui.aes_decrypt(aes_key, enc_block, status)
+                hasher.update(block)
+                file_out.write(block)
+
+        sig_status = supports_gui.pss_verify(self.pubkey, None, sig, hasher)
+        resultwindow = ResultWindow(f'文件路径为：{path_o}', 1, sig_status)
 
 
 if __name__ == '__main__':
-    prikey = None # 定义 prikey 变量，防止之后出现访问不到 #MARK00
-    if not check_self_pem(): # 检测有没有密钥和配置文件 #MARK01
-        print('你可以手动修复这个问题，或者重新生成密钥')
-        if input('密钥不完整，是否重新生成(Y/N)>>>').lower() == 'y':
-            prikey, pubkey = supports.genkeys(input('请输入密码，留空为没有密码>>>')) #MARK00
-            site_root = input('请输入你的公钥服务器>>>')
-            site_root = site_root if site_root else 'key.kagurazakaeri.com' # 若用户没有填公钥服务器，钦定使用演示站
-            pubkey_dir = './PublicKey'; output_dir = './ResultFile' # 感谢绘里姐姐提供跑演示站的服务器
-            supports.gen_cfg('Config.json', site_root, prikey.decode(), pubkey_dir, output_dir)     
-            with open('public.pem', 'wb') as f:
-                f.write(pubkey)
-            system('cls')
-        else: exit()
-
-    if not prikey: # 这里检测是否已加载私钥，第一次运行创建密钥后会加载私钥 #MARK00
-        cfg = supports.load_cfg('Config.json')
-        site_root, prikey_t = cfg['siteroot'], cfg['defaultkey']
-        pubkey_dir, output_dir = cfg['pubkeys'], cfg['results']
-        while True:
-            password = input('请输入密码，若留空则没有密码>>>') # 解密私钥如果设了密码
-            status, prikey = supports.load_prikey(prikey_t, password)
-            if status: break
-            print('密码错误')
-    if not exists(output_dir): mkdir(output_dir)
-    if not exists(pubkey_dir): mkdir(pubkey_dir)
-    system('cls') # 清屏
-
-    pubkeys = find_pubkeys() # 查找目前所有公钥，自己的放第一位 #MARK02
-
-    while True: # 主循环，程序正式开始运行
-        mode = input(modes)
-        if mode == '0': # 解密
-            third = print_pubkey(pubkeys, '请选择发信人 >>>')
-
-            status, text = supports.get_text() # 尝试从剪切板读取密文
-            if not status: print('剪切板中没有数据'); continue
-            if not len(text.split('\n')) > 2: # 剪切板中没有期望的数据，尝试在文件中查找
-                if exists(f'{output_dir}/result.txt'):
-                    with open('result.txt', 'r') as f:
-                        text = f.read()
-                else: print('没有可解密的数据'); continue # 完全没有数据可解密
-            code, result = supports.decrypt_t(prikey, third, text)
-            if   code == 0: print(result, '\n√ 签名有效')
-            elif code == 1: print(result, '\n× 签名无效')
-            elif code == 2: print(result, '\n× 没有签名')
-            elif code == -1: print('无效密文')
-            elif code == -2: print('无法解密，这可能不是给你的消息')
-
-        elif mode == '1': # 加密
-            third = print_pubkey(pubkeys, '请选择收信人 >>>')
-            message = input('请输入信息>>>') # 得到用户要加密的信息
-            need_sig = True if input('是否签名(Y/N)>>>').lower() == 'y' else False # 询问用户是否签名
-
-            _, result = supports.encrypt_t(prikey, third, message, need_sig)
-            with open(f'{output_dir}/result.txt', 'w') as resultfile: # 写入到文件
-                resultfile.write(result)
-            supports.set_text(result.encode('ascii')) # 输出至剪切板
-            print('已将密文输出至 result.txt 和剪切板')
-
-        elif mode == '2':
-            third = print_pubkey(pubkeys, '请选择发信人 >>>')
-            filename = input('请输入文件名>>>')
-
-            if exists(f'{output_dir}/{filename}.rsa') and exists(f'{output_dir}/{filename}.pas'):
-                code, msg = supports.decrypt_f(prikey, third, filename)
-                if   code == 0: print(f'输出文件名为：{msg}', '\n√ 签名有效')
-                elif code == 1: print(f'输出文件名为：{msg}', '\n× 签名无效')
-                elif code == 2: print(f'输出文件名为：{msg}', '\n× 没有签名')
-                elif code == -1: print('无效密文')
-                elif code == -2: print('无法解密，这可能不是给你的消息')
-                elif code == -3: print('文件损坏')
-            else: print('文件不存在')
-
-        elif mode == '3':
-            third = print_pubkey(pubkeys, '请选择收信人 >>>')
-            path = input('请输入文件路径>>>')
-            name = input('请输入生成文件名称>>>')
-
-            if exists(path): supports.encrypt_f(prikey, third, path, name)
-            else: print('文件不存在')
-
-        elif mode == '4': # 从公钥服务器查找公钥
-            mail = input('请输入你要找的公钥所对应的邮箱>>>')
-            k_status, name, pubkey = supports.get_pubkey(site_root, mail)
-            if k_status:
-                with open(f'{pubkey_dir}/{name}.pem', 'w') as f:
-                    f.write(pubkey)
-                pubkeys = find_pubkeys() 
-            else: print('找不到对应公钥')
-
-        elif mode == '5': pubkeys = find_pubkeys() # 重载公钥列表
-
-        elif mode == '6':
-            if input('是否更改公钥服务器(Y/N)>>>').lower() == 'y':
-                site_root_t = input('请输入公钥服务器地址>>>') 
-                cfg['siteroot'] = site_root_t if site_root_t else site_root
-            if input('是否修改密码(Y/N)>>>').lower() == 'y':
-                _prikey = supports.changepassword(prikey.save_pkcs1(), input('请输入密码，若留空则删除密码>>>'))
-                cfg['defaultkey'] = _prikey.decode()
-            if input('是否修改公钥路径(Y/N)>>>').lower() == 'y':
-                _dir = input('请输入路径>>>')
-                cfg['pubkeys'] = _dir if not dir.endswith('/') else _dir.rstrip('/')
-            if input('是否修改输出路径(Y/N)>>>').lower() == 'y':
-                _dir = input('请输入路径>>>')
-                cfg['results'] = _dir if not dir.endswith('/') else _dir.rstrip('/')
-            with open('Config.json', 'w') as f:
-                f.write(json.dumps(cfg, indent=4))
-
-        elif mode == '8': exit() # 退出程序
-
-        else: print('未知指令')
-
-        input('按回车以重新开始') # 停住
-        system('cls')
+    if not os.path.exists('keyring.db'): supports_gui.gen_database()
+    app = MainWindows()
+    app.mainloop()

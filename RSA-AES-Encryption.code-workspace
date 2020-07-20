@@ -5,10 +5,6 @@
 			"path": "./Codes"
 		},
 		{
-			"name": "Fix",
-			"path": "./Fix"
-		},
-		{
 			"name": "Test",
 			"path": "./Test"
 		}
