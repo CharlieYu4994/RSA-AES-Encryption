@@ -2,7 +2,7 @@ import supports
 import re, os, base64, binascii, pyperclip
 from Crypto.Random import get_random_bytes
 from Crypto.Hash import SHA256
-import tkinter, sqlite3
+import tkinter, sqlite3, threading
 from tkinter.simpledialog import askstring
 from tkinter import scrolledtext, filedialog, ttk
 
@@ -64,11 +64,12 @@ class ResultWindow(tkinter.Toplevel):
         self.result = _result
         self.sig_status = _sig_status
         self.title('Result')
-        self.resizable(0, 0)
 
         if   _type == 0: self.setupUI_E()
         elif _type == 1: self.setupUI_D()
         elif _type == 2: self.setupUI_F()
+
+        self.resizable(0, 0)
 
     def setupUI_E(self):
         self.geometry(f'338x180+{self.dispalyw-150}+{self.displayh-200}')
@@ -196,29 +197,35 @@ class MainWindows(tkinter.Tk):
 
         dirbox = ttk.Frame(frame1)
         dir_l_i = ttk.Label(dirbox, text='文件路径:')
-        dir_l_i.grid(column=0, row=0, pady=10)
+        dir_l_i.grid(column=0, row=0)
         self.dir_e_i = ttk.Entry(dirbox, width=25)
-        self.dir_e_i.grid(column=1, row=0, pady=10)
+        self.dir_e_i.grid(column=1, row=0)
         dir_b_i = ttk.Button(dirbox, text='选择文件', width=8,
                              command=lambda: (self.dir_e_i.delete('0', 'end'),
                              self.dir_e_i.insert('0', filedialog.askopenfilename(title='请选择文件'))))
-        dir_b_i.grid(column=2, row=0, pady=10)
+        dir_b_i.grid(column=2, row=0)
         dir_l_o = ttk.Label(dirbox, text='保存路径:')
-        dir_l_o.grid(column=0, row=1, pady=10)
+        dir_l_o.grid(column=0, row=1)
         self.dir_e_o = ttk.Entry(dirbox, width=25)
-        self.dir_e_o.grid(column=1, row=1, pady=10)
+        self.dir_e_o.grid(column=1, row=1)
         dir_b_o = ttk.Button(dirbox, text='选择目录', width=8,
                              command=lambda: (self.dir_e_o.delete('0', 'end'),
                              self.dir_e_o.insert('0', filedialog.askdirectory(title='请选择文件夹'))))
-        dir_b_o.grid(column=2, row=1, pady=10)
-        dirbox.grid(column=0, row=0, padx=20, pady=15)
+        dir_b_o.grid(column=2, row=1)
+        dirbox.grid(column=0, row=0, padx=20, pady=20)
 
         footbox_page2 = ttk.Frame(frame1)
-        encrypt_b_file = ttk.Button(footbox_page2, width=20, text='加密', command=self.encrypt_file)
+        progressbar_l = ttk.Label(footbox_page2, text='进度:')
+        progressbar_l.grid(column=0, row=0, pady=5)
+        self.progressbar = ttk.Progressbar(footbox_page2, maximum=10000)
+        self.progressbar.grid(column=1, row=0, columnspan=19, sticky='ew', pady=5, padx=6)
+        encrypt_b_file = ttk.Button(footbox_page2, width=20, text='加密',
+                                    command=lambda: threading.Thread(target=self.encrypt_file).start())
         encrypt_b_file.grid(column=0, columnspan=10, row=1, padx=5)
-        decrypt_b_file = ttk.Button(footbox_page2, width=20, text='解密', command=self.decrypt_file)
+        decrypt_b_file = ttk.Button(footbox_page2, width=20, text='解密',
+                                    command=lambda: threading.Thread(target=self.decrypt_file).start())
         decrypt_b_file.grid(column=10, columnspan=10, row=1, padx=5)
-        footbox_page2.grid(column=0, row=1, pady=10)
+        footbox_page2.grid(column=0, row=1, pady=15)
 
         tabs.add(frame1, text='文件加/解密')
 #--------------------------------------------第三页------------------------------------------------#
@@ -347,9 +354,9 @@ class MainWindows(tkinter.Tk):
 
         message = supports.composite_decrypt(
             self.prikey, enc_message, enc_aes_key)
-        status = supports.pss_verify(
+        sig_status = supports.pss_verify(
             self.thirdkey, message, sig) if sig != b'No sig' else False
-        resultwindow = ResultWindow(message.decode(), 1, status)
+        resultwindow = ResultWindow(message.decode(), 1, sig_status)
 
     def encrypt_file(self):
         aes_key = get_random_bytes(16)
@@ -359,6 +366,9 @@ class MainWindows(tkinter.Tk):
         else :
             os.path.dirname(path_i)
             self.dir_e_o.insert('0', path_o)
+        
+        file_size = os.path.getsize(path_i) / 1048576
+        step = 5000 / (file_size if file_size >= 1 else 1)
 
         sig_hasher = SHA256.new()
         file_hasher = SHA256.new()
@@ -371,6 +381,7 @@ class MainWindows(tkinter.Tk):
             for block, status in supports.read_file(path_i, 0):
                 sig_hasher.update(block)
                 file_out.write(supports.aes_encrypt(aes_key, block, status))
+                self.progressbar['value'] = self.progressbar['value'] + step
             sig = supports.pss_sign(self.prikey, None, sig_hasher)
             final_file_info = base64.b64encode(enc_file_info) + b'.' + base64.b64encode(sig)
 
@@ -381,16 +392,21 @@ class MainWindows(tkinter.Tk):
 
             for block, _ in supports.read_file(f'{path_o}/result.ref', 35):
                 file_hasher.update(block)
-                print(block)
+                self.progressbar['value'] = self.progressbar['value'] + step
 
             file_out.write(b'REF')
             file_out.write(file_hasher.digest())
 
+        self.progressbar['value'] = 0
         resultwindow = ResultWindow(path_o, 2, _sig_status=None)
 
     def decrypt_file(self):
         path_i = self.dir_e_i.get()
         path_o = self.dir_e_o.get()
+
+        file_size = os.path.getsize(path_i) / 1048576
+        step = 10000 / (file_size if file_size >= 1 else 1)
+
         sig_hasher = SHA256.new()
         file_hasher = SHA256.new()
 
@@ -420,8 +436,10 @@ class MainWindows(tkinter.Tk):
                 block = supports.aes_decrypt(aes_key, enc_block, status)
                 sig_hasher.update(block)
                 file_out.write(block)
+                self.progressbar['value'] = self.progressbar['value'] + step
 
         sig_status = supports.pss_verify(self.pubkey, None, sig, sig_hasher)
+        self.progressbar['value'] = 0
         resultwindow = ResultWindow(path_o, 2, sig_status)
 
 
