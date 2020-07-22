@@ -219,12 +219,12 @@ class MainWindows(tkinter.Tk):
         progressbar_l.grid(column=0, row=0, pady=5)
         self.progressbar = ttk.Progressbar(footbox_page2, maximum=10000)
         self.progressbar.grid(column=1, row=0, columnspan=19, sticky='ew', pady=5, padx=6)
-        encrypt_b_file = ttk.Button(footbox_page2, width=20, text='加密',
+        self.encrypt_b_file = ttk.Button(footbox_page2, width=20, text='加密',
                                     command=lambda: threading.Thread(target=self.encrypt_file).start())
-        encrypt_b_file.grid(column=0, columnspan=10, row=1, padx=5)
-        decrypt_b_file = ttk.Button(footbox_page2, width=20, text='解密',
+        self.encrypt_b_file.grid(column=0, columnspan=10, row=1, padx=5)
+        self.decrypt_b_file = ttk.Button(footbox_page2, width=20, text='解密',
                                     command=lambda: threading.Thread(target=self.decrypt_file).start())
-        decrypt_b_file.grid(column=10, columnspan=10, row=1, padx=5)
+        self.decrypt_b_file.grid(column=10, columnspan=10, row=1, padx=5)
         footbox_page2.grid(column=0, row=1, pady=15)
 
         tabs.add(frame1, text='文件加/解密')
@@ -359,6 +359,7 @@ class MainWindows(tkinter.Tk):
         resultwindow = ResultWindow(message.decode(), 1, sig_status)
 
     def encrypt_file(self):
+        self.encrypt_b_file['state'] = 'disabled'
         aes_key = get_random_bytes(16)
         path_i = self.dir_e_i.get()
         if self.dir_e_o.get():
@@ -398,9 +399,11 @@ class MainWindows(tkinter.Tk):
             file_out.write(file_hasher.digest())
 
         self.progressbar['value'] = 0
+        self.encrypt_b_file['state'] = 'normal'
         resultwindow = ResultWindow(path_o, 2, _sig_status=None)
 
     def decrypt_file(self):
+        self.decrypt_b_file['state'] = 'disabled'
         path_i = self.dir_e_i.get()
         path_o = self.dir_e_o.get()
 
@@ -412,13 +415,15 @@ class MainWindows(tkinter.Tk):
 
         with open(path_i, 'rb') as file_in:
             if file_in.read(3) != b'REF':
-                tkinter.messagebox.showerror('Error', '文件解析失败'); return
+                tkinter.messagebox.showerror('Error', '文件解析失败')
+                self.decrypt_b_file['state'] = 'normal'; return
 
             for block, _ in supports.read_file(path_i, 35):
                 file_hasher.update(block)
 
             if file_in.read(32) != file_hasher.digest():
-                tkinter.messagebox.showerror('Error', '文件损坏'); return
+                tkinter.messagebox.showerror('Error', '文件损坏')
+                self.decrypt_b_file['state'] = 'normal'; return
 
             enc_file_info, sig = file_in.read(int(file_in.read(3))).split(b'.')
 
@@ -427,7 +432,8 @@ class MainWindows(tkinter.Tk):
 
         try: file_info = supports.rsa_decrypt(self.prikey, enc_file_info)
         except Exception as E:
-            tkinter.messagebox.showerror('Error', '文件信息解密失败'); return
+            tkinter.messagebox.showerror('Error', '文件信息解密失败')
+            self.decrypt_b_file['state'] = 'normal'; return
 
         aes_key, filename = file_info.split(b'^&%&^')
 
@@ -440,6 +446,7 @@ class MainWindows(tkinter.Tk):
 
         sig_status = supports.pss_verify(self.pubkey, None, sig, sig_hasher)
         self.progressbar['value'] = 0
+        self.decrypt_b_file['state'] = 'normal'
         resultwindow = ResultWindow(path_o, 2, sig_status)
 
 
