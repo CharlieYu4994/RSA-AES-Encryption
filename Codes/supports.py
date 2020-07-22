@@ -3,7 +3,7 @@ from Crypto.PublicKey import RSA
 from Crypto.Random import get_random_bytes
 from Crypto.Signature import pss
 from Crypto.Hash import SHA256
-import sqlite3
+import sqlite3, os
 
 
 # ------------------------------------BASIC Encrypt Part---------------------------------- #
@@ -11,7 +11,7 @@ def pkcs7padding(_data: bytes, _block_size: int) -> bytes:
     _padding_size = _block_size - len(_data) % _block_size
     return _data + chr(_padding_size).encode() * _padding_size
 
-def pkcs7unpadding(_data: bytes) -> bytes:  # 去填充
+def pkcs7unpadding(_data: bytes) -> bytes:
     _length = len(_data)
     return _data[0:_length - int(_data[-1])] 
 
@@ -23,13 +23,34 @@ def aes_decrypt(_key: bytes, _data: bytes, _pad=True) -> bytes:
     _cipher = AES.new(_key, AES.MODE_CBC, _key[0:16])
     return pkcs7unpadding(_cipher.decrypt(_data)) if _pad else _cipher.decrypt(_data)
 
+def rsa_encrypt(_pubkey, _data: bytes) -> bytes:
+    _cipher = PKCS1_OAEP.new(_pubkey)
+    return _cipher.encrypt(_data)
+
 def rsa_decrypt(_prikey, _data: bytes) -> bytes:
     _cipher = PKCS1_OAEP.new(_prikey)
     return _cipher.decrypt(_data)
 
-def rsa_encrypt(_pubkey, _data: bytes) -> bytes:
-    _cipher = PKCS1_OAEP.new(_pubkey)
-    return _cipher.encrypt(_data)
+def composite_encrypt(_pubkey, _data: bytes) -> bytes:
+    _session_key = get_random_bytes(16)
+    return rsa_encrypt(_pubkey, _session_key), aes_encrypt(_session_key, _data)
+
+def composite_decrypt(_prikey, _data: bytes, _session_key: bytes) -> bytes:
+    _session_key = rsa_decrypt(_prikey, _session_key)
+    return aes_decrypt(_session_key, _data)
+
+def pss_sign(_prikey, _data: bytes, _hash=None) -> bytes:
+    _hash = _hash if _hash else SHA256.new(_data)
+    return pss.new(_prikey).sign(_hash)
+
+def pss_verify(_pubkey, _data: bytes, _signature: bytes, _hash=None) -> bool:
+    _verifier = pss.new(_pubkey)
+    _hash = _hash if _hash else SHA256.new(_data)
+    try:
+        _verifier.verify(_hash, _signature)
+        return True
+    except Exception as E:
+        return False
 
 def gen_rsakey(_length: int, _passphrase: str) -> bytes:
     _key = RSA.generate(_length)
@@ -45,27 +66,6 @@ def load_key(_pubkey: bytes, _prikey=None, _passphrase=None):
         else: return True, _prikey, _pubkey
     else: return RSA.import_key(_pubkey)
 
-def composite_decrypt(_prikey, _data: bytes, _session_key: bytes) -> bytes:
-    _session_key = rsa_decrypt(_prikey, _session_key)
-    return aes_decrypt(_session_key, _data)
-
-def composite_encrypt(_pubkey, _data: bytes, _session_key=None) -> bytes:
-    _session_key = _session_key if _session_key else get_random_bytes(16)
-    return rsa_encrypt(_pubkey, _session_key), aes_encrypt(_session_key, _data)
-
-def pss_sign(_prikey, _data: bytes, _hash=None) -> bytes:
-    _hash = _hash if _hash else SHA256.new(_data)
-    return pss.new(_prikey).sign(_hash)
-
-def pss_verify(_pubkey, _data: bytes, _signature: bytes, _hash=None) -> bool:
-    _verifier = pss.new(_pubkey)
-    _hash = _hash if _hash else SHA256.new(_data)
-    try:
-        _verifier.verify(_hash, _signature)
-        return True
-    except Exception as E:
-        return False
-
 # ---------------------------------------Database Part------------------------------------ #
 def gen_database():
     _db = sqlite3.connect('keyring.db')
@@ -79,22 +79,23 @@ def gen_database():
 				ID           INTEGER PRIMARY KEY,
 				PubKey       TEXT    NOT NULL,
 				Describe     CHAR(20)NOT NULL );""")
-    _cursor.execute("""CREATE TABLE Others(
+    _cursor.execute("""CREATE TABLE Resources(
                 ID           INTEGER PRIMARY KEY,
-                Settings     TEXT    NOT NULL)""")
+                Field        CHAR(15)NOT NULL UNIQUE,
+                Value        TEXT    NOT NULL);""")
     _db.commit()
     _db.close()
 
 def add_userkey(_prikey: bytes, _pubkey: bytes, _describe: str, _db):
     _cursor = _db.cursor()
     _cursor.execute(f"INSERT INTO UserKeys (PubKey, PriKey, Describe) \
-			      VALUES ('{_pubkey.decode()}', '{_prikey.decode()}', '{_describe}')")
+			          VALUES ('{_pubkey.decode()}', '{_prikey.decode()}', '{_describe}')")
     _db.commit()
 
 def add_pubkey(_pubkey: bytes, _describe: str, _db):
     _cursor = _db.cursor()
     _cursor.execute(f"INSERT INTO ThirdKeys (PubKey, Describe) \
-			      VALUES ('{_pubkey.decode()}', '{_describe}')")
+			          VALUES ('{_pubkey.decode()}', '{_describe}')")
     _db.commit()
 
 def del_key(_id: int, _table: str, _db):
@@ -120,10 +121,26 @@ def get_thirdkey(_id: int, _db) -> bytes:
     _cursor.execute(f"SELECT PubKey FROM ThirdKeys WHERE ID = '{_id}'")
     return _cursor.fetchall()[0][0].encode()
 
-def get_cfg(_db):
+def add_res(_field: str, _value: str, _db):
     _cursor = _db.cursor()
-    _cursor.execute(f"SELECT Settings FROM Others WHERE ID = '{_id}'")
-    return _cursor.fet
+    _cursor.execute(f"INSERT INTO Resources (Field, Value)\
+                      VALUES ('{_field}', '{_value}')")
+    _db.commit()
+
+def del_res(_field: str, _db):
+    _cursor = _db.cursor()
+    _cursor.execute(f"DELETE FROM Resources WHERE Field = {_field}")
+    _db.commit()
+
+def alt_res(_field: str, _value: str, _db):
+    _cursor = _db.cursor()
+    _cursor.execute(f"UPDATE Resources SET Value='{_value}' WHERE Field='{_field}'")
+    _db.commit()
+
+def get_res(_field: str, _db) -> str:
+    _cursor = _db.cursor()
+    _cursor.execute(f"SELECT Value FROM Resources WHERE Field = '{_field}'")
+    return _cursor.fetchall()[0][0]
 
 # -----------------------------------------Other Part------------------------------------- #
 def read_file(_path: str, _seek: int):
@@ -133,8 +150,26 @@ def read_file(_path: str, _seek: int):
         while True:
             block = f.read(BLOCK_SIZE)
             if block: yield block, len(block) != BLOCK_SIZE
-            else: return
+            else: return 'Done'
+
+def get_cfg(_db):
+    _siteroot = get_res('siteroot', _db)
+    _outputpath = get_res('outputpath', _db)
+    _defaultkey = get_res('defaultkey', _db)
+    return _siteroot, _outputpath, _defaultkey
+
+def gen_cfg(_db):
+    add_res('siteroot', 'key.kagurazakaeri.com', _db)
+    add_res('outputpath', '', _db)
+    add_res('defaultkey', '', _db)
+
+def alt_cfg(_siteroot: str, _outputdir: str, _defaultkey: str, _db):
+    alt_res('siteroot', _siteroot, _db)
+    alt_res('outputpath', _outputdir, _db)
+    alt_res('defaultkey', _defaultkey, _db)
 
 # --------------------------------------------Debug--------------------------------------- #
 if __name__ == '__main__':
+    database = sqlite3.connect('keyring.db')
+    ''.endswith()
     pass

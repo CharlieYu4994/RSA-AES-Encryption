@@ -26,7 +26,6 @@ class InputWindow(tkinter.Toplevel):
         self.geometry(f'300x100+{dispalyw-150}+{displayh-100}')
         self.resizable(0, 0)
         self.setupUI()
-        self.password_e.focus_set()
 
     def setupUI(self):
         password_box = ttk.Frame(self)
@@ -36,14 +35,13 @@ class InputWindow(tkinter.Toplevel):
         self.password_e.grid(column=1, row=0)
         self.password_e['show'] = '*'
         self.password_e.bind('<Return>', self.submit)
+        self.password_e.focus_set()
         password_box.grid(column=0, row=0, padx=15, pady=15)
 
         btn_box = ttk.Frame(self)
-        o_btn = ttk.Button(btn_box, text='确定', width=16,
-                           command=lambda: self.submit(None))
+        o_btn = ttk.Button(btn_box, text='确定', width=16, command=lambda: self.submit(None))
         o_btn.grid(column=0, row=0, padx=12)
-        c_btn = ttk.Button(btn_box, text='取消', width=16,
-                           command=lambda: self.destroy())
+        c_btn = ttk.Button(btn_box, text='取消', width=16, command=lambda: self.destroy())
         c_btn.grid(column=1, row=0, padx=12)
         btn_box.grid(column=0, row=1, pady=10)
 
@@ -66,24 +64,20 @@ class ResultWindow(tkinter.Toplevel):
         self.result = _result
         self.sig_status = _sig_status
         self.title('Result')
-        if _type == 0:
-            self.setupUI_E()
-        elif _type == 1:
-            self.setupUI_D()
-        elif _type == 2:
-            self.setupUI_F()
         self.resizable(0, 0)
+
+        if   _type == 0: self.setupUI_E()
+        elif _type == 1: self.setupUI_D()
+        elif _type == 2: self.setupUI_F()
 
     def setupUI_E(self):
         self.geometry(f'338x180+{self.dispalyw-150}+{self.displayh-200}')
         self.setup_result_box()
 
-        copy_btn = ttk.Button(self, text='复制', width=10,
-                              command=lambda: pyperclip.copy(self.result))
+        copy_btn = ttk.Button(self, text='复制', width=10, command=lambda: pyperclip.copy(self.result))
         copy_btn.grid(column=0, row=1, pady=10)
 
-        ok_btn = ttk.Button(self, text='确定', width=10,
-                            command=lambda: self.destroy())
+        ok_btn = ttk.Button(self, text='确定', width=10, command=lambda: self.destroy())
         ok_btn.grid(column=1, row=1, pady=10)
 
     def setupUI_D(self):
@@ -95,13 +89,12 @@ class ResultWindow(tkinter.Toplevel):
                            font=('', '12'))
         sign_l.grid(column=0, row=1)
 
-        ok_btn = ttk.Button(self, text='确定', width=15,
-                            command=lambda: self.destroy())
+        ok_btn = ttk.Button(self, text='确定', width=15, command=lambda: self.destroy())
         ok_btn.grid(column=1, row=1, pady=10)
 
     def setupUI_F(self):
-        self.geometry(f'338x100+{self.dispalyw-169}+{self.displayh-150}')
-        textbox = scrolledtext.ScrolledText(self, width=45, height=2)
+        self.geometry(f'334x100+{self.dispalyw-167}+{self.displayh-150}')
+        textbox = tkinter.Text(self, width=47, height=4)
         textbox.grid(column=0, row=0, columnspan=3)
         textbox.insert('0.0', self.result)
 
@@ -156,20 +149,26 @@ class MainWindows(tkinter.Tk):
     userkeydict = dict()
     thirdkeylist = list()
     userkeylist = list()
-    prikey = pubkey = thirdkey = None
+    cfg = prikey = pubkey = thirdkey = None
 
     def __init__(self):
         super().__init__()
         self.title('RSA&AES Encryption')
-        self.geometry('345x205')
+        self.geometry('345x205+200+100')
         self.resizable(0, 0)
         self.getkeylist()
         self.setupUI()
+        self.wm_attributes('-topmost', 1)
+
+        self.cfg = supports.get_cfg(self.database)
+        self.url_e_cfg.insert('0', self.cfg[0])
+        self.dir_e_save.insert('0', self.cfg[1])
+        self.dir_e_o.insert('0', self.cfg[1])
         if self.thirdkeylist:
             self.select_thirdkey(self.thirdkeylist[0])
             self.thirdkey_ls.current(0)
         if self.userkeylist:
-            self.select_userkey(self.userkeylist[0])
+            self.select_userkey(self.cfg[2] if self.cfg[2] else self.userkeylist[0])
             self.userkey_ls.current(0)
 
     def setupUI(self):
@@ -183,14 +182,11 @@ class MainWindows(tkinter.Tk):
 
         footbox_page1 = ttk.Frame(frame0)
         self.sign_check = tkinter.BooleanVar()
-        signcheck = ttk.Checkbutton(
-            footbox_page1, text='签名', variable=self.sign_check)
+        signcheck = ttk.Checkbutton(footbox_page1, text='签名', variable=self.sign_check)
         signcheck.grid(column=0, row=0, padx=20)
-        encrypt_b_text = ttk.Button(
-            footbox_page1, width=8, text='加密', command=self.encrypt_text)
+        encrypt_b_text = ttk.Button(footbox_page1, width=8, text='加密', command=self.encrypt_text)
         encrypt_b_text.grid(column=1, row=0)
-        decrypt_b_text = ttk.Button(
-            footbox_page1, width=8, text='解密', command=self.decrypt_text)
+        decrypt_b_text = ttk.Button(footbox_page1, width=8, text='解密', command=self.decrypt_text)
         decrypt_b_text.grid(column=2, row=0)
         footbox_page1.grid(column=0, row=1, pady=10)
 
@@ -239,8 +235,7 @@ class MainWindows(tkinter.Tk):
         self.dir_e_save.grid(column=1, row=1, pady=5)
         userkey_ls_l = ttk.Label(footbox_page3, text='选择密钥    :')
         userkey_ls_l.grid(column=0, row=2, pady=5)
-        userkey_ls_l.bind('<Button-1>',
-                          lambda event: self.freshkeylist)
+        userkey_ls_l.bind('<Button-1>', lambda event: self.freshkeylist)
         self.userkey_ls = ttk.Combobox(footbox_page3, width=30)
         self.userkey_ls['values'] = self.userkeylist
         self.userkey_ls.bind('<<ComboboxSelected>>',
@@ -248,7 +243,7 @@ class MainWindows(tkinter.Tk):
         self.userkey_ls.grid(column=1, row=2, pady=5)
         footbox_page3.grid(column=0, row=0, columnspan=10, padx=16, pady=15)
 
-        save_btn = ttk.Button(frame2, width=8, text='保存')
+        save_btn = ttk.Button(frame2, width=8, text='保存', command=self.save_cfg)
         save_btn.grid(column=9, row=1)
 
         btn_box = ttk.Frame(frame2)
@@ -263,8 +258,7 @@ class MainWindows(tkinter.Tk):
         keybox = ttk.Frame(self)
         thirdkey_l = ttk.Label(keybox, text='收/发件人:')
         thirdkey_l.grid(column=0, row=0, sticky='w')
-        thirdkey_l.bind('<Button-1>',
-                        lambda event: self.freshkeylist)
+        thirdkey_l.bind('<Button-1>', lambda event: self.freshkeylist)
         self.thirdkey_ls = ttk.Combobox(keybox, width=11)
         self.thirdkey_ls['values'] = self.thirdkeylist
         self.thirdkey_ls.grid(column=1, row=0)
@@ -285,27 +279,36 @@ class MainWindows(tkinter.Tk):
         self.pubkeyls['values'] = self.thirdkeylist
         self.prikeyls['values'] = self.userkeylist
 
-    def select_userkey(self, _describe: str):
-        _id = self.userkeydict[_describe]
-        _prikey_t, _pubkey_t = supports.get_userkey(_id, self.database)
+    def select_userkey(self, describe: str):
+        u_id = self.userkeydict[describe]
+        prikey_t, pubkey_t = supports.get_userkey(u_id, self.database)
+
         for _ in range(5):
-            _inputwindow = InputWindow()
-            self.wait_window(_inputwindow)
-            _status, _prikey, _pubkey = supports.load_key(
-                _pubkey_t, _prikey_t, _inputwindow.password)
-            if _status:
-                self.prikey = _prikey
-                self.pubkey = _pubkey
-                break
-            tkinter.messagebox.showwarning('Warning', '密码错误')
-        if not _status:
+            inputwindow = InputWindow()
+            self.wait_window(inputwindow)
+            status, prikey, pubkey = supports.load_key(
+                pubkey_t, prikey_t, inputwindow.password)
+            if not status: tkinter.messagebox.showwarning('Warning', '密码错误'); continue
+            self.prikey, self.pubkey = prikey, pubkey; break
+
+        if not status:
             tkinter.messagebox.showwarning('Warning', '密码五次输入错误，请重新选择')
             self.userkey_ls.delete(first='0', last='end')
 
-    def select_thirdkey(self, _describe):
-        _id = self.thirdkeydict[_describe]
-        self.thirdkey = supports.load_key(
-            supports.get_thirdkey(_id, self.database))
+    def select_thirdkey(self, describe):
+        u_id = self.thirdkeydict[describe]
+        self.thirdkey = supports.load_key(supports.get_thirdkey(u_id, self.database))
+    
+    def save_cfg(self):
+        _url = self.url_e_cfg.get()
+        _outputdir = self.dir_e_save.get()
+        if _outputdir.endswith('/'): _outputdir = _outputdir[:-1]
+        _defaultkey = self.userkey_ls.get()
+
+        supports.alt_cfg(_url, _outputdir, _defaultkey, self.database)
+
+        self.dir_e_o.delete('0', 'end')
+        self.dir_e_o.insert('0', _outputdir)
 
     def keymanage(self):
         pass
@@ -346,14 +349,19 @@ class MainWindows(tkinter.Tk):
             self.prikey, enc_message, enc_aes_key)
         status = supports.pss_verify(
             self.thirdkey, message, sig) if sig != b'No sig' else False
-        resultwindow = ResultWindow(message, 1, status)
+        resultwindow = ResultWindow(message.decode(), 1, status)
 
     def encrypt_file(self):
         aes_key = get_random_bytes(16)
         path_i = self.dir_e_i.get()
-        path_o = self.dir_e_o.get() if self.dir_e_o.get() else os.path.dirname(path_i)
-        self.dir_e_o.insert('0', path_o)
-        hasher = SHA256.new()
+        if self.dir_e_o.get():
+            path_o = self.dir_e_o.get() 
+        else :
+            os.path.dirname(path_i)
+            self.dir_e_o.insert('0', path_o)
+
+        sig_hasher = SHA256.new()
+        file_hasher = SHA256.new()
 
         file_info = aes_key + b'^&%&^' + os.path.basename(path_i).encode()
         enc_file_info = supports.rsa_encrypt(self.thirdkey, file_info)
@@ -361,61 +369,65 @@ class MainWindows(tkinter.Tk):
         with open(f'{path_o}/result.ref', 'wb') as file_out:
             file_out.seek(500)
             for block, status in supports.read_file(path_i, 0):
-                hasher.update(block)
+                sig_hasher.update(block)
                 file_out.write(supports.aes_encrypt(aes_key, block, status))
-            sig = supports.pss_sign(self.prikey, None, hasher)
-            final_file_info = base64.b64encode(
-                enc_file_info) + b'.' + base64.b64encode(sig)
+            sig = supports.pss_sign(self.prikey, None, sig_hasher)
+            final_file_info = base64.b64encode(enc_file_info) + b'.' + base64.b64encode(sig)
 
-            file_out.seek(0, 0)
-            file_out.write(b'REF')
-            file_out.write(hasher.digest())
+            file_out.seek(35, 0)
             file_out.write(str(len(final_file_info)).encode())
             file_out.write(final_file_info)
+            file_out.seek(0, 0)
+
+            for block, _ in supports.read_file(f'{path_o}/result.ref', 35):
+                file_hasher.update(block)
+                print(block)
+
+            file_out.write(b'REF')
+            file_out.write(file_hasher.digest())
 
         resultwindow = ResultWindow(path_o, 2, _sig_status=None)
 
     def decrypt_file(self):
         path_i = self.dir_e_i.get()
         path_o = self.dir_e_o.get()
-        hasher = SHA256.new()
+        sig_hasher = SHA256.new()
+        file_hasher = SHA256.new()
 
-        try:
-            with open(path_i, 'rb') as file_in:
-                sign = file_in.read(3)
-                file_hash = file_in.read(32)
-                enc_file_info, sig = file_in.read(
-                    int(file_in.read(3))).split(b'.')
+        with open(path_i, 'rb') as file_in:
+            if file_in.read(3) != b'REF':
+                tkinter.messagebox.showerror('Error', '文件解析失败'); return
 
-            if sign != b'REF':
-                tkinter.messagebox.showerror('Error', '文件解析失败')
-                return
+            for block, _ in supports.read_file(path_i, 35):
+                file_hasher.update(block)
 
-            enc_file_info = base64.b64decode(enc_file_info)
-            sig = base64.b64decode(sig)
-            file_info = supports.rsa_decrypt(self.prikey, enc_file_info)
+            if file_in.read(32) != file_hasher.digest():
+                tkinter.messagebox.showerror('Error', '文件损坏'); return
+
+            enc_file_info, sig = file_in.read(int(file_in.read(3))).split(b'.')
+
+        enc_file_info = base64.b64decode(enc_file_info)
+        sig = base64.b64decode(sig)
+
+        try: file_info = supports.rsa_decrypt(self.prikey, enc_file_info)
         except Exception as E:
-            tkinter.messagebox.showerror('Error', '文件信息解密失败')
-            return
+            tkinter.messagebox.showerror('Error', '文件信息解密失败'); return
 
         aes_key, filename = file_info.split(b'^&%&^')
 
         with open(f'{path_o}/{filename.decode()}', 'wb') as file_out:
             for enc_block, status in supports.read_file(path_i, 500):
                 block = supports.aes_decrypt(aes_key, enc_block, status)
-                hasher.update(block)
+                sig_hasher.update(block)
                 file_out.write(block)
 
-        if file_hash != hasher.digest():
-            tkinter.messagebox.showerror('Error', '文件损坏')
-            return
-
-        sig_status = supports.pss_verify(self.pubkey, None, sig, hasher)
+        sig_status = supports.pss_verify(self.pubkey, None, sig, sig_hasher)
         resultwindow = ResultWindow(path_o, 2, sig_status)
 
 
 if __name__ == '__main__':
     if not os.path.exists('keyring.db'):
         supports.gen_database()
+        supports.gen_cfg(sqlite3.connect('keyring.db'))
     app = MainWindows()
     app.mainloop()
