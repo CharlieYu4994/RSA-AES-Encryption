@@ -171,6 +171,4 @@ def alt_cfg(_siteroot: str, _outputdir: str, _defaultkey: str, _db):
 # --------------------------------------------Debug--------------------------------------- #
 if __name__ == '__main__':
     database = sqlite3.connect('keyring.db')
-    a = "*****this is string example....wow!!!*****"
-    print(a.rstrip('x'))
     pass
