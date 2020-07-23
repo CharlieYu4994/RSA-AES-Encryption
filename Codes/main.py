@@ -12,33 +12,54 @@ msg_suffix = '\n-----END MESSAGE-----'
 
 class InputWindow(tkinter.Toplevel):
     '''
-    密码输入窗口
+    输入窗口
     '''
 
-    password = None
+    result = None
 
-    def __init__(self):
+    def __init__(self, _type: int):
         super().__init__()
         displayh = self.winfo_screenheight() // 2
         dispalyw = self.winfo_screenwidth() // 2
+        self.type = _type
         self.protocol('WM_DELETE_WINDOW', lambda: self.destroy())
-        self.title('Password')
+        self.title('Input')
         self.geometry(f'374x110+{dispalyw-187}+{displayh-90}')
         self.resizable(0, 0)
-        self.setupUI()
+        
+        if   self.type == 0: self.setupUI_P()
+        elif self.type == 1: self.setupUI_N()
+
         self.grab_set()
         self.wm_attributes('-topmost', 1)
 
-    def setupUI(self):
-        password_box = ttk.Frame(self)
-        password_l = ttk.Label(password_box, text='密码  :')
-        password_l.grid(column=0, row=0)
-        self.password_e = ttk.Entry(password_box, width=32)
-        self.password_e.grid(column=1, row=0)
-        self.password_e['show'] = '*'
-        self.password_e.bind('<Return>', self.submit)
-        self.password_e.focus_set()
-        password_box.grid(column=0, row=0, padx=15, pady=15)
+    def setupUI_P(self):
+        result_box = ttk.Frame(self)
+        result_l = ttk.Label(result_box, text='密码  :')
+        result_l.grid(column=0, row=0)
+        self.result_entry = ttk.Entry(result_box, width=32)
+        self.result_entry.grid(column=1, row=0)
+        self.result_entry['show'] = '*'
+        self.result_entry.bind('<Return>', lambda event: self.submit())
+        self.result_entry.focus_set()
+        result_box.grid(column=0, row=0, padx=15, pady=15)
+
+        btn_box = ttk.Frame(self)
+        o_btn = ttk.Button(btn_box, text='确定', width=16, command=lambda: self.submit())
+        o_btn.grid(column=0, row=0, padx=16)
+        c_btn = ttk.Button(btn_box, text='取消', width=16, command=lambda: self.destroy())
+        c_btn.grid(column=1, row=0, padx=16)
+        btn_box.grid(column=0, row=1, pady=12)
+    
+    def setupUI_N(self):
+        result_box = ttk.Frame(self)
+        result_lab = ttk.Label(result_box, text='备注  :')
+        result_lab.grid(column=0, row=0)
+        self.result_entry = ttk.Entry(result_box, width=32)
+        self.result_entry.grid(column=1, row=0)
+        self.result_entry.bind('<Return>', self.submit)
+        self.result_entry.focus_set()
+        result_box.grid(column=0, row=0, padx=15, pady=15)
 
         btn_box = ttk.Frame(self)
         o_btn = ttk.Button(btn_box, text='确定', width=16, command=lambda: self.submit(None))
@@ -47,8 +68,9 @@ class InputWindow(tkinter.Toplevel):
         c_btn.grid(column=1, row=0, padx=16)
         btn_box.grid(column=0, row=1, pady=12)
 
-    def submit(self, event):
-        self.password = self.password_e.get()
+
+    def submit(self):
+        self.result = self.result_entry.get()
         self.destroy()
 
 
@@ -120,14 +142,14 @@ class KeyManage(tkinter.Toplevel):
     密钥管理窗口
     '''
 
-    database = sqlite3.connect('keyring.db')
     thirdkeydict = dict()
     userkeydict = dict()
     thirdkeylist = list()
     userkeylist = list()
 
-    def __init__(self):
+    def __init__(self, _database):
         super().__init__()
+        self.database = _database
         displayh = self.winfo_screenheight() // 2
         dispalyw = self.winfo_screenwidth() // 2
         self.title('KeyManager')
@@ -145,6 +167,7 @@ class KeyManage(tkinter.Toplevel):
         self.userkey_ls = tkinter.Listbox(page_one, width=38,
                                           yscrollcommand=userkey_ls_sb.set)
         self.userkey_ls.grid(column=0, row=0)
+        self.userkey_ls.bind('<Double-Button-1>', )
         userkey_ls_sb.grid(column=1, row=0, sticky='ns')
         userkey_ls_sb.config(command=self.userkey_ls.yview)
         btn_box_page_one = ttk.Frame(page_one)
@@ -196,6 +219,9 @@ class KeyManage(tkinter.Toplevel):
         u_id = self.userkeydict[keylist.get('active')]
         supports.del_key(u_id, 'UserKeys' if _type == 0 else 'ThirdKeys', self.database)
         keylist.delete('active')
+    
+    def rename(self):
+        pass
 
 
 class MainWindows(tkinter.Tk):
@@ -203,15 +229,15 @@ class MainWindows(tkinter.Tk):
     主入口
     '''
 
-    database = sqlite3.connect('keyring.db')
     thirdkeydict = dict()
     userkeydict = dict()
     thirdkeylist = list()
     userkeylist = list()
     cfg = prikey = pubkey = thirdkey = None
 
-    def __init__(self):
+    def __init__(self, _database):
         super().__init__()
+        self.database = _database
         self.title('RSA&AES Encryption')
         self.geometry('442x252+200+100')
         self.resizable(0, 0)
@@ -314,7 +340,7 @@ class MainWindows(tkinter.Tk):
         save_btn.grid(column=9, row=1)
 
         btn_box = ttk.Frame(page_three)
-        pubkey_btn = ttk.Button(btn_box, width=12, text='生成私钥', command=lambda:print(self.focus_get()))
+        pubkey_btn = ttk.Button(btn_box, width=12, text='生成私钥', command=self.gen_key)
         pubkey_btn.grid(column=0, row=0, padx=4)
         prikey_btn = ttk.Button(btn_box, width=12, text='管理密钥', command=self.keymanage)
         prikey_btn.grid(column=1, row=0, padx=4)
@@ -351,10 +377,10 @@ class MainWindows(tkinter.Tk):
         prikey_t, pubkey_t = supports.get_userkey(u_id, self.database)
 
         for _ in range(5):
-            inputwindow = InputWindow()
-            self.wait_window(inputwindow)
+            input_window = InputWindow(0)
+            self.wait_window(input_window)
             status, prikey, pubkey = supports.load_key(
-                pubkey_t, prikey_t, inputwindow.password)
+                pubkey_t, prikey_t, input_window.result)
             if not status: tkinter.messagebox.showwarning('Warning', '密码错误'); continue
             self.prikey, self.pubkey = prikey, pubkey; break
 
@@ -377,8 +403,18 @@ class MainWindows(tkinter.Tk):
         self.dir_out_entry.insert('0', _outputdir)
 
     def keymanage(self):
-        keymanage_window = KeyManage()
+        keymanage_window = KeyManage(self.database)
         self.wait_window(keymanage_window)
+        self.freshkeylist()
+    
+    def gen_key(self):
+        input_window = InputWindow(0)
+        self.wait_window(input_window)
+        prikey, pubkey = supports.gen_rsakey(2048, input_window.result)
+        input_window = InputWindow(1)
+        self.wait_window(input_window)
+        describe = input_window.result if input_window.result else 'UserKey'
+        supports.add_userkey(prikey, pubkey, describe, self.database)
         self.freshkeylist()
 
     def encrypt_text(self):
@@ -512,8 +548,7 @@ class MainWindows(tkinter.Tk):
 
 
 if __name__ == '__main__':
-    if not os.path.exists('keyring.db'):
-        supports.gen_database()
-        supports.gen_cfg(sqlite3.connect('keyring.db'))
-    app = MainWindows()
+    supports.gen_database()
+    database = sqlite3.connect('keyring.db')
+    app = MainWindows(database)
     app.mainloop()

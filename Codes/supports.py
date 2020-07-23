@@ -68,23 +68,25 @@ def load_key(_pubkey: bytes, _prikey=None, _passphrase=None):
 
 # ---------------------------------------Database Part------------------------------------ #
 def gen_database():
-    _db = sqlite3.connect('keyring.db')
-    _cursor = _db.cursor()
-    _cursor.execute("""CREATE TABLE UserKeys(
-				ID           INTEGER PRIMARY KEY,
-				PubKey       TEXT    NOT NULL,
-				PriKey       TEXT    NOT NULL,
-				Describe     CHAR(50)         );""")
-    _cursor.execute("""CREATE TABLE ThirdKeys(
-				ID           INTEGER PRIMARY KEY,
-				PubKey       TEXT    NOT NULL,
-				Describe     CHAR(20)NOT NULL );""")
-    _cursor.execute("""CREATE TABLE Resources(
-                ID           INTEGER PRIMARY KEY,
-                Field        CHAR(15)NOT NULL UNIQUE,
-                Value        TEXT    NOT NULL);""")
-    _db.commit()
-    _db.close()
+    if not os.path.exists('keyring.db'):
+        _db = sqlite3.connect('keyring.db')
+        _cursor = _db.cursor()
+        _cursor.execute("""CREATE TABLE UserKeys(
+                    ID           INTEGER PRIMARY KEY,
+                    PubKey       TEXT    NOT NULL,
+                    PriKey       TEXT    NOT NULL,
+                    Describe     CHAR(50)         );""")
+        _cursor.execute("""CREATE TABLE ThirdKeys(
+                    ID           INTEGER PRIMARY KEY,
+                    PubKey       TEXT    NOT NULL,
+                    Describe     CHAR(20)NOT NULL );""")
+        _cursor.execute("""CREATE TABLE Resources(
+                    ID           INTEGER PRIMARY KEY,
+                    Field        CHAR(15)NOT NULL UNIQUE,
+                    Value        TEXT    NOT NULL);""")
+        gen_cfg(_db)
+        _db.commit()
+        _db.close()
 
 def add_userkey(_prikey: bytes, _pubkey: bytes, _describe: str, _db):
     _cursor = _db.cursor()
@@ -170,5 +172,4 @@ def alt_cfg(_siteroot: str, _outputdir: str, _defaultkey: str, _db):
 
 # --------------------------------------------Debug--------------------------------------- #
 if __name__ == '__main__':
-    database = sqlite3.connect('keyring.db')
     pass
