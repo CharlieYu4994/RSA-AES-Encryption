@@ -531,8 +531,11 @@ class MainWindows(tkinter.Tk):
         file_info = aes_key + b'^&%&^' + os.path.basename(path_i).encode()
         enc_file_info = supports.rsa_encrypt(self.thirdkey, file_info)
 
-        with open(f'{path_o}/result.ref', 'wb') as file_out:
-            file_out.seek(1536)
+        input_window = InputWindow('文件名:', True)
+        self.wait_window(input_window)
+
+        with open(f'{path_o}/{input_window.result}.ref', 'wb') as file_out:
+            file_out.seek(1024)
             for block, status in supports.read_file(path_i, 0):
                 sig_hasher.update(block)
                 file_out.write(supports.aes_encrypt(aes_key, block, status))
@@ -545,7 +548,7 @@ class MainWindows(tkinter.Tk):
             file_out.write(final_file_info)
             file_out.seek(0, 0)
 
-            for block, _ in supports.read_file(f'{path_o}/result.ref', 35):
+            for block, _ in supports.read_file(f'{path_o}/{input_window.result}.ref', 35):
                 file_hasher.update(block)
                 self.progressbar['value'] = self.progressbar['value'] + step
 
@@ -592,7 +595,7 @@ class MainWindows(tkinter.Tk):
         aes_key, filename = file_info.split(b'^&%&^')
 
         with open(f'{path_o}/{filename.decode()}', 'wb') as file_out:
-            for enc_block, status in supports.read_file(path_i, 1536):
+            for enc_block, status in supports.read_file(path_i, 1024):
                 block = supports.aes_decrypt(aes_key, enc_block, status)
                 sig_hasher.update(block)
                 file_out.write(block)
