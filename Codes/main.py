@@ -17,29 +17,27 @@ class InputWindow(tkinter.Toplevel):
 
     result = None
 
-    def __init__(self, _type: int):
+    def __init__(self, prompt: str, show: bool):
         super().__init__()
         displayh = self.winfo_screenheight() // 2
         dispalyw = self.winfo_screenwidth() // 2
-        self.type = _type
+        self.prompt = prompt
+        self.show = not show
         self.protocol('WM_DELETE_WINDOW', lambda: self.destroy())
         self.title('Input')
         self.geometry(f'374x110+{dispalyw-187}+{displayh-90}')
         self.resizable(0, 0)
-        
-        if   self.type == 0: self.setupUI_P()
-        elif self.type == 1: self.setupUI_N()
-
+        self.setupUI()
         self.grab_set()
         self.wm_attributes('-topmost', 1)
 
-    def setupUI_P(self):
+    def setupUI(self):
         result_box = ttk.Frame(self)
-        result_l = ttk.Label(result_box, text='密码  :')
+        result_l = ttk.Label(result_box, text=self.prompt)
         result_l.grid(column=0, row=0)
         self.result_entry = ttk.Entry(result_box, width=32)
         self.result_entry.grid(column=1, row=0)
-        self.result_entry['show'] = '*'
+        if self.show: self.result_entry['show'] = '*'
         self.result_entry.bind('<Return>', lambda event: self.submit())
         self.result_entry.focus_set()
         result_box.grid(column=0, row=0, padx=15, pady=15)
@@ -50,24 +48,6 @@ class InputWindow(tkinter.Toplevel):
         c_btn = ttk.Button(btn_box, text='取消', width=16, command=lambda: self.destroy())
         c_btn.grid(column=1, row=0, padx=16)
         btn_box.grid(column=0, row=1, pady=12)
-    
-    def setupUI_N(self):
-        result_box = ttk.Frame(self)
-        result_lab = ttk.Label(result_box, text='备注  :')
-        result_lab.grid(column=0, row=0)
-        self.result_entry = ttk.Entry(result_box, width=32)
-        self.result_entry.grid(column=1, row=0)
-        self.result_entry.bind('<Return>', self.submit)
-        self.result_entry.focus_set()
-        result_box.grid(column=0, row=0, padx=15, pady=15)
-
-        btn_box = ttk.Frame(self)
-        o_btn = ttk.Button(btn_box, text='确定', width=16, command=lambda: self.submit(None))
-        o_btn.grid(column=0, row=0, padx=16)
-        c_btn = ttk.Button(btn_box, text='取消', width=16, command=lambda: self.destroy())
-        c_btn.grid(column=1, row=0, padx=16)
-        btn_box.grid(column=0, row=1, pady=12)
-
 
     def submit(self):
         self.result = self.result_entry.get()
@@ -81,12 +61,12 @@ class ResultWindow(tkinter.Toplevel):
 
     result = ''
 
-    def __init__(self, _result: str, _type: int, _sig_status=True):
+    def __init__(self, _result: str, _type: int, sig_status=True):
         super().__init__()
         self.displayh = self.winfo_screenheight() // 2
         self.dispalyw = self.winfo_screenwidth() // 2
         self.result = _result
-        self.sig_status = _sig_status
+        self.sig_status = sig_status
         self.title('Result')
 
         if   _type == 0: self.setupUI_T()
@@ -167,16 +147,21 @@ class KeyManage(tkinter.Toplevel):
         self.userkey_ls = tkinter.Listbox(page_one, width=38,
                                           yscrollcommand=userkey_ls_sb.set)
         self.userkey_ls.grid(column=0, row=0)
-        self.userkey_ls.bind('<Double-Button-1>', )
+        self.userkey_ls.bind('<Double-Button-1>', lambda event: self.rename(0))
+        self.userkey_ls.bind('<Return>', lambda event: self.alt_pass())
         userkey_ls_sb.grid(column=1, row=0, sticky='ns')
         userkey_ls_sb.config(command=self.userkey_ls.yview)
         btn_box_page_one = ttk.Frame(page_one)
         del_btn_page_one = ttk.Button(btn_box_page_one, text='删除', command=
                                       lambda: self.del_key(0))
         del_btn_page_one.grid(column=0, row=0, padx=5)
-        import_btn_page_one = ttk.Button(btn_box_page_one, text='导入')
+        import_btn_page_one = ttk.Button(btn_box_page_one, text='导入', command=
+                                        lambda: self.import_key(filedialog.askopenfilename(
+                                        defaultextension='.pem', filetypes=[('PEM Key', '*.pem')])))
         import_btn_page_one.grid(column=1, row=0, padx=5)
-        export_btn_page_one = ttk.Button(btn_box_page_one, text='导出')
+        export_btn_page_one = ttk.Button(btn_box_page_one, text='导出', command=
+                                        lambda: self.export_key(0, filedialog.asksaveasfilename(
+                                        defaultextension='.pem', filetypes=[('PEM Key', '*.pem')])))
         export_btn_page_one.grid(column=2, row=0, padx=5)
         btn_box_page_one.grid(column=0, row=1, columnspan=2, pady=14)
         self.tabs.add(page_one, text='私钥')
@@ -185,6 +170,7 @@ class KeyManage(tkinter.Toplevel):
         thirdkey_ls_sb = ttk.Scrollbar(page_two)
         self.thirdkey_ls = tkinter.Listbox(page_two, width=38,
                                            yscrollcommand=thirdkey_ls_sb.set)
+        self.thirdkey_ls.bind('<Double-Button-1>', lambda event: self.rename(1))
         self.thirdkey_ls.grid(column=0, row=0)
         thirdkey_ls_sb.grid(column=1, row=0, sticky='ns')
         thirdkey_ls_sb.config(command=self.thirdkey_ls.yview)
@@ -192,9 +178,13 @@ class KeyManage(tkinter.Toplevel):
         del_btn_page_two = ttk.Button(btn_box_page_two, text='删除', command=
                                       lambda: self.del_key(1))
         del_btn_page_two.grid(column=0, row=0, padx=5)
-        import_btn_page_two = ttk.Button(btn_box_page_two, text='导入')
+        import_btn_page_two = ttk.Button(btn_box_page_two, text='导入', command=
+                                        lambda: self.import_key(filedialog.askopenfilename(
+                                        defaultextension='.pem', filetypes=[('PEM Key', '*.pem')])))
         import_btn_page_two.grid(column=1, row=0, padx=5)
-        export_btn_page_two = ttk.Button(btn_box_page_two, text='导出')
+        export_btn_page_two = ttk.Button(btn_box_page_two, text='导出', command=
+                                        lambda: self.export_key(1, filedialog.asksaveasfilename(
+                                        defaultextension='.pem', filetypes=[('PEM Key', '*.pem')])))
         export_btn_page_two.grid(column=2, row=0, padx=5)
         btn_box_page_two.grid(column=0, row=1, columnspan=2, pady=14)
         self.tabs.add(page_two, text='公钥')
@@ -209,19 +199,77 @@ class KeyManage(tkinter.Toplevel):
 
     def freshkeylist(self):
         self.getkeylist()
+        self.userkey_ls.delete('0', 'end')
+        self.thirdkey_ls.delete('0', 'end')
         for key in self.userkeylist:
             self.userkey_ls.insert('end', key)
         for key in self.thirdkeylist:
             self.thirdkey_ls.insert('end', key)
 
-    def del_key(self, _type):
-        keylist = self.userkey_ls if _type == 0 else self.thirdkey_ls
-        u_id = self.userkeydict[keylist.get('active')]
-        supports.del_key(u_id, 'UserKeys' if _type == 0 else 'ThirdKeys', self.database)
+    def del_key(self, key_type: int):
+        u_id = self.get_u_id(key_type)
+        keylist = self.userkey_ls if key_type == 0 else self.thirdkey_ls
+        supports.del_key(u_id, 'UserKeys' if key_type == 0 else 'ThirdKeys', self.database)
         keylist.delete('active')
     
-    def rename(self):
-        pass
+    def rename(self, key_type: int):
+        u_id = self.get_u_id(key_type)
+        keylist = self.userkey_ls if key_type == 0 else self.thirdkey_ls
+        input_window = InputWindow('描述  :', True)
+        self.wait_window(input_window)
+        describe = input_window.result if input_window.result else keylist.get('active')[:-4]
+        supports.alt_key(u_id, 'Describe', describe, 'UserKeys' if key_type == 0 else 'ThirdKeys',
+                         self.database)
+        self.freshkeylist()
+
+    def alt_pass(self):
+        u_id = self.get_u_id(0)
+        prikey_t, pubkey_t = supports.get_userkey(u_id, self.database)
+
+        for _ in range(5):
+            input_window = InputWindow('旧密码:', False)
+            self.wait_window(input_window)
+            status, prikey, _ = supports.load_key(pubkey_t, prikey_t, input_window.result)
+            if not status: tkinter.messagebox.showwarning('Warning', '密码错误'); continue
+            break
+        if not status:
+            tkinter.messagebox.showwarning('Warning', '密码五次输入错误，请重新选择'); return
+        input_window = InputWindow('新密码:', False)
+        self.wait_window(input_window)
+        password = input_window.result
+        supports.alt_key(u_id, 'PriKey', supports.expert_key(prikey, password).decode(),
+                         'UserKeys', self.database)
+
+    def import_key(self, path: str):
+        with open(path, 'rb') as file_in:
+            temp = file_in.read(1048576).decode()
+            prikey = re.search(r'-----BEGIN RSA[\s\S]*PRIVATE KEY-----', temp)
+            pubkey = re.search(r'-----BEGIN PUBLIC[\s\S]*BLIC KEY-----', temp)
+            input_window = InputWindow('描述  :', True)
+            self.wait_window(input_window)
+            if prikey and pubkey:
+                supports.add_userkey(prikey.group().encode(), pubkey.group().encode(),
+                                     input_window.result, self.database)
+            elif not prikey and pubkey:
+                supports.add_thirdkey(pubkey.group().encode(), input_window.result, self.database)
+            else:
+                tkinter.messagebox.showerror('Error', '密钥格式无效')
+            self.freshkeylist()
+        
+    def export_key(self, key_type, path: str):
+        with open(path, 'w') as file_out:
+            u_id = self.get_u_id(key_type)
+            if key_type == 0:
+                _, pubkey = supports.get_userkey(u_id, self.database)
+                file_out.write(pubkey.decode())
+            else:
+                pubkey = supports.get_thirdkey(u_id, self.database).decode()
+                file_out.write(pubkey)
+
+    def get_u_id(self, key_type: int):
+        keylist = self.userkey_ls if key_type == 0 else self.thirdkey_ls
+        keydict = self.userkeydict if key_type == 0 else self.thirdkeydict
+        return keydict[keylist.get('active')]
 
 
 class MainWindows(tkinter.Tk):
@@ -377,10 +425,9 @@ class MainWindows(tkinter.Tk):
         prikey_t, pubkey_t = supports.get_userkey(u_id, self.database)
 
         for _ in range(5):
-            input_window = InputWindow(0)
+            input_window = InputWindow('密码  :', False)
             self.wait_window(input_window)
-            status, prikey, pubkey = supports.load_key(
-                pubkey_t, prikey_t, input_window.result)
+            status, prikey, pubkey = supports.load_key(pubkey_t, prikey_t, input_window.result)
             if not status: tkinter.messagebox.showwarning('Warning', '密码错误'); continue
             self.prikey, self.pubkey = prikey, pubkey; break
 
@@ -405,13 +452,14 @@ class MainWindows(tkinter.Tk):
     def keymanage(self):
         keymanage_window = KeyManage(self.database)
         self.wait_window(keymanage_window)
+        self.userkey_ls.delete(first='0', last='end')
         self.freshkeylist()
     
     def gen_key(self):
-        input_window = InputWindow(0)
+        input_window = InputWindow('密码  :', False)
         self.wait_window(input_window)
         prikey, pubkey = supports.gen_rsakey(2048, input_window.result)
-        input_window = InputWindow(1)
+        input_window = InputWindow('描述  :', True)
         self.wait_window(input_window)
         describe = input_window.result if input_window.result else 'UserKey'
         supports.add_userkey(prikey, pubkey, describe, self.database)
@@ -419,10 +467,8 @@ class MainWindows(tkinter.Tk):
 
     def encrypt_text(self):
         message = self.inputbox.get(index1='0.0', index2='end').encode()
-        enc_aes_key, enc_message = supports.composite_encrypt(
-            self.thirdkey, message)
-        sig = supports.pss_sign(
-            self.prikey, message) if self.sign_check.get() else b'No sig'
+        enc_aes_key, enc_message = supports.composite_encrypt(self.thirdkey, message)
+        sig = supports.pss_sign(self.prikey, message) if self.sign_check.get() else b'No sig'
 
         b64ed_aes_key = base64.b64encode(enc_aes_key).decode()
         b64ed_message = base64.b64encode(enc_message).decode()
@@ -456,7 +502,7 @@ class MainWindows(tkinter.Tk):
         result_window = ResultWindow(message.decode(), 0, sig_status)
 
     def encrypt_file(self):
-        self.encrypt_b_file['state'] = 'disabled'
+        self.file_encrypt_btn['state'] = 'disabled'
         aes_key = get_random_bytes(16)
         path_i = self.dir_in_entry.get()
         if self.dir_out_entry.get():
@@ -475,7 +521,7 @@ class MainWindows(tkinter.Tk):
         enc_file_info = supports.rsa_encrypt(self.thirdkey, file_info)
 
         with open(f'{path_o}/result.ref', 'wb') as file_out:
-            file_out.seek(500)
+            file_out.seek(1536)
             for block, status in supports.read_file(path_i, 0):
                 sig_hasher.update(block)
                 file_out.write(supports.aes_encrypt(aes_key, block, status))
@@ -496,11 +542,11 @@ class MainWindows(tkinter.Tk):
             file_out.write(file_hasher.digest())
 
         self.progressbar['value'] = 0
-        self.encrypt_b_file['state'] = 'normal'
+        self.file_encrypt_btn['state'] = 'normal'
         result_window = ResultWindow(path_o, 1, None)
 
     def decrypt_file(self):
-        self.decrypt_b_file['state'] = 'disabled'
+        self.file_decrypt_btn['state'] = 'disabled'
         path_i = self.dir_in_entry.get()
         path_o = self.dir_out_entry.get()
 
@@ -513,14 +559,14 @@ class MainWindows(tkinter.Tk):
         with open(path_i, 'rb') as file_in:
             if file_in.read(3) != b'REF':
                 tkinter.messagebox.showerror('Error', '文件解析失败')
-                self.decrypt_b_file['state'] = 'normal'; return
+                self.file_decrypt_btn['state'] = 'normal'; return
 
             for block, _ in supports.read_file(path_i, 35):
                 file_hasher.update(block)
 
             if file_in.read(32) != file_hasher.digest():
                 tkinter.messagebox.showerror('Error', '文件损坏')
-                self.decrypt_b_file['state'] = 'normal'; return
+                self.file_decrypt_btn['state'] = 'normal'; return
 
             enc_file_info, sig = file_in.read(int(file_in.read(3))).split(b'.')
 
@@ -530,12 +576,12 @@ class MainWindows(tkinter.Tk):
         try: file_info = supports.rsa_decrypt(self.prikey, enc_file_info)
         except Exception as E:
             tkinter.messagebox.showerror('Error', '文件信息解密失败')
-            self.decrypt_b_file['state'] = 'normal'; return
+            self.file_decrypt_btn['state'] = 'normal'; return
 
         aes_key, filename = file_info.split(b'^&%&^')
 
         with open(f'{path_o}/{filename.decode()}', 'wb') as file_out:
-            for enc_block, status in supports.read_file(path_i, 500):
+            for enc_block, status in supports.read_file(path_i, 1536):
                 block = supports.aes_decrypt(aes_key, enc_block, status)
                 sig_hasher.update(block)
                 file_out.write(block)
@@ -543,7 +589,7 @@ class MainWindows(tkinter.Tk):
 
         sig_status = supports.pss_verify(self.pubkey, None, sig, sig_hasher)
         self.progressbar['value'] = 0
-        self.decrypt_b_file['state'] = 'normal'
+        self.file_decrypt_btn['state'] = 'normal'
         result_window = ResultWindow(path_o, 1, sig_status)
 
 

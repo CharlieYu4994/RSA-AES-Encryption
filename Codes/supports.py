@@ -66,6 +66,9 @@ def load_key(_pubkey: bytes, _prikey=None, _passphrase=None):
         else: return True, _prikey, _pubkey
     else: return RSA.import_key(_pubkey)
 
+def expert_key(_prikey, _passphrase: str) -> bytes:
+    return _prikey.export_key(passphrase=_passphrase if _passphrase else None)
+
 # ---------------------------------------Database Part------------------------------------ #
 def gen_database():
     if not os.path.exists('keyring.db'):
@@ -94,7 +97,7 @@ def add_userkey(_prikey: bytes, _pubkey: bytes, _describe: str, _db):
 			          VALUES ('{_pubkey.decode()}', '{_prikey.decode()}', '{_describe}')")
     _db.commit()
 
-def add_pubkey(_pubkey: bytes, _describe: str, _db):
+def add_thirdkey(_pubkey: bytes, _describe: str, _db):
     _cursor = _db.cursor()
     _cursor.execute(f"INSERT INTO ThirdKeys (PubKey, Describe) \
 			          VALUES ('{_pubkey.decode()}', '{_describe}')")
@@ -102,7 +105,12 @@ def add_pubkey(_pubkey: bytes, _describe: str, _db):
 
 def del_key(_id: int, _table: str, _db):
     _cursor = _db.cursor()
-    _cursor.execute(f"DELETE FROM '{_table}' WHERE id = {_id}")
+    _cursor.execute(f"DELETE FROM {_table} WHERE ID='{_id}'")
+    _db.commit()
+
+def alt_key(_id: int, _field: str, _value: str, _table: str,_db):
+    _cursor = _db.cursor()
+    _cursor.execute(f"UPDATE {_table} SET '{_field}'='{_value}' WHERE ID='{_id}'")
     _db.commit()
 
 def get_keydict(_table: str, _db) -> dict:
@@ -115,12 +123,12 @@ def get_keydict(_table: str, _db) -> dict:
 def get_userkey(_id: int, _db) -> bytes:
     _cursor = _db.cursor()
     _pubkey, _prikey = _cursor.execute(f"SELECT PubKey, PriKey FROM UserKeys \
-                                         WHERE ID = '{_id}'").fetchall()[0]
+                                         WHERE ID='{_id}'").fetchall()[0]
     return _prikey.encode(), _pubkey.encode()
 
 def get_thirdkey(_id: int, _db) -> bytes:
     _cursor = _db.cursor()
-    _cursor.execute(f"SELECT PubKey FROM ThirdKeys WHERE ID = '{_id}'")
+    _cursor.execute(f"SELECT PubKey FROM ThirdKeys WHERE ID='{_id}'")
     return _cursor.fetchall()[0][0].encode()
 
 def add_res(_field: str, _value: str, _db):
@@ -131,7 +139,7 @@ def add_res(_field: str, _value: str, _db):
 
 def del_res(_field: str, _db):
     _cursor = _db.cursor()
-    _cursor.execute(f"DELETE FROM Resources WHERE Field = {_field}")
+    _cursor.execute(f"DELETE FROM Resources WHERE Field='{_field}'")
     _db.commit()
 
 def alt_res(_field: str, _value: str, _db):
@@ -141,7 +149,7 @@ def alt_res(_field: str, _value: str, _db):
 
 def get_res(_field: str, _db) -> str:
     _cursor = _db.cursor()
-    _cursor.execute(f"SELECT Value FROM Resources WHERE Field = '{_field}'")
+    _cursor.execute(f"SELECT Value FROM Resources WHERE Field='{_field}'")
     return _cursor.fetchall()[0][0]
 
 # -----------------------------------------Other Part------------------------------------- #
