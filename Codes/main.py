@@ -149,6 +149,10 @@ class KeyManage(tkinter.Toplevel):
         self.userkey_ls.grid(column=0, row=0)
         self.userkey_ls.bind('<Double-Button-1>', lambda event: self.rename(0))
         self.userkey_ls.bind('<Return>', lambda event: self.alt_pass())
+        self.userkey_ls.bind('<Shift-KeyPress-Return>',
+                             lambda event: self.export_pri_key(
+                             filedialog.asksaveasfilename(
+                             defaultextension='.pem', filetypes=[('PEM Key', '*.pem')])))
         userkey_ls_sb.grid(column=1, row=0, sticky='ns')
         userkey_ls_sb.config(command=self.userkey_ls.yview)
         btn_box_page_one = ttk.Frame(page_one)
@@ -265,6 +269,13 @@ class KeyManage(tkinter.Toplevel):
             else:
                 pubkey = supports.get_thirdkey(u_id, self.database).decode()
                 file_out.write(pubkey)
+    
+    def export_pri_key(self, path: str):
+        with open(path, 'wb') as file_out:
+            u_id = self.get_u_id(0)
+            prikey, pubkey = supports.get_userkey(u_id, self.database)
+            file_out.write(prikey)
+            file_out.write(pubkey)
 
     def get_u_id(self, key_type: int):
         keylist = self.userkey_ls if key_type == 0 else self.thirdkey_ls
