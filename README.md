@@ -1,5 +1,5 @@
 # RSAencryption
-简易的 RSA + Base64 加密，并输出为可在聊天工具内发生的消息。目的是替代 PGP。
+简易的 RSA 和 AES 加密，并输出为可在聊天工具内发生的消息。
 
 ---
 # 初衷
@@ -12,4 +12,4 @@
 ~~https://blog.charlieyu4994.cn/post/encryptedcoffee/~~ （已过期）
 
 # 注意
-~~本工具仅在Windows平台可用~~  （现在换掉了 pywin32 的轮子，应该能通用了吧）
+如果发现本工具界面不对劲，请右键它，选择属性-兼容性，将高 DPI 行为改为应用程序
