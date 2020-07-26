@@ -1,11 +1,7 @@
-.github
 dist
 build
 __pycache__
-main.spec
 Pipfile
 Pipfile.lock
-requirements.txt
 Test
 keyring.db
-out.bin

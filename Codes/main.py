@@ -1,4 +1,4 @@
-import supports
+import supports, sys
 import re, os, base64, binascii, pyperclip
 from Crypto.Random import get_random_bytes
 from Crypto.Hash import SHA256
@@ -9,6 +9,12 @@ from tkinter import scrolledtext, filedialog, ttk
 msg_prefix = '-----BEGIN MESSAGE-----\n'
 msg_suffix = '\n-----END MESSAGE-----'
 
+if getattr(sys, 'frozen', None):
+    basedir = sys._MEIPASS
+else:
+    basedir = os.path.dirname(__file__)
+
+icon = os.path.join(basedir, 'assets/icon.ico')
 
 class InputWindow(tkinter.Toplevel):
     '''
@@ -23,6 +29,7 @@ class InputWindow(tkinter.Toplevel):
         dispalyw = self.winfo_screenwidth() // 2
         self.prompt = prompt
         self.show = not show
+        self.iconbitmap(icon)
         self.protocol('WM_DELETE_WINDOW', lambda: self.destroy())
         self.title('Input')
         self.geometry(f'374x110+{dispalyw-187}+{displayh-90}')
@@ -67,6 +74,7 @@ class ResultWindow(tkinter.Toplevel):
         self.dispalyw = self.winfo_screenwidth() // 2
         self.result = _result
         self.sig_status = sig_status
+        self.iconbitmap(icon)
         self.title('Result')
 
         if   _type == 0: self.setupUI_T()
@@ -132,6 +140,7 @@ class KeyManage(tkinter.Toplevel):
         self.database = _database
         displayh = self.winfo_screenheight() // 2
         dispalyw = self.winfo_screenwidth() // 2
+        self.iconbitmap(icon)
         self.title('KeyManager')
         self.geometry(f'370x300+{dispalyw-185}+{displayh-150}')
         self.resizable(0, 0)
@@ -297,6 +306,7 @@ class MainWindows(tkinter.Tk):
     def __init__(self, _database):
         super().__init__()
         self.database = _database
+        self.iconbitmap(icon)
         self.title('RSA&AES Encryption')
         self.geometry('442x252+200+100')
         self.resizable(0, 0)
