@@ -1,4 +1,4 @@
-import supports, sys
+import utils, sys
 import re, os, base64, binascii, pyperclip
 from Crypto.Random import get_random_bytes
 from Crypto.Hash import SHA256
@@ -205,8 +205,8 @@ class KeyManage(tkinter.Toplevel):
         self.tabs.grid(column=0, row=0, sticky='nswe')
 
     def getkeylist(self):
-        self.userkeydict = supports.get_keydict('UserKeys', self.database)
-        self.thirdkeydict = supports.get_keydict('ThirdKeys', self.database)
+        self.userkeydict = utils.get_keydict('UserKeys', self.database)
+        self.thirdkeydict = utils.get_keydict('ThirdKeys', self.database)
         self.userkeylist = list(self.userkeydict.keys())
         self.thirdkeylist = list(self.thirdkeydict.keys())
 
@@ -222,7 +222,7 @@ class KeyManage(tkinter.Toplevel):
     def del_key(self, key_type: int):
         u_id = self.get_u_id(key_type)
         keylist = self.userkey_ls if key_type == 0 else self.thirdkey_ls
-        supports.del_key(u_id, 'UserKeys' if key_type == 0 else 'ThirdKeys', self.database)
+        utils.del_key(u_id, 'UserKeys' if key_type == 0 else 'ThirdKeys', self.database)
         keylist.delete('active')
     
     def rename(self, key_type: int):
@@ -231,18 +231,18 @@ class KeyManage(tkinter.Toplevel):
         input_window = InputWindow('描述  :', True)
         self.wait_window(input_window)
         describe = input_window.result if input_window.result else keylist.get('active')[:-4]
-        supports.alt_key(u_id, 'Describe', describe, 'UserKeys' if key_type == 0 else 'ThirdKeys',
+        utils.alt_key(u_id, 'Describe', describe, 'UserKeys' if key_type == 0 else 'ThirdKeys',
                          self.database)
         self.freshkeylist()
 
     def alt_pass(self):
         u_id = self.get_u_id(0)
-        prikey_t, pubkey_t = supports.get_userkey(u_id, self.database)
+        prikey_t, pubkey_t = utils.get_userkey(u_id, self.database)
 
         for _ in range(5):
             input_window = InputWindow('旧密码:', False)
             self.wait_window(input_window)
-            status, prikey, _ = supports.load_key(pubkey_t, prikey_t, input_window.result)
+            status, prikey, _ = utils.load_key(pubkey_t, prikey_t, input_window.result)
             if not status: tkinter.messagebox.showwarning('Warning', '密码错误'); continue
             break
         if not status:
@@ -250,7 +250,7 @@ class KeyManage(tkinter.Toplevel):
         input_window = InputWindow('新密码:', False)
         self.wait_window(input_window)
         password = input_window.result
-        supports.alt_key(u_id, 'PriKey', supports.expert_key(prikey, password).decode(),
+        utils.alt_key(u_id, 'PriKey', utils.expert_key(prikey, password).decode(),
                          'UserKeys', self.database)
 
     def import_key(self, path: str):
@@ -261,10 +261,10 @@ class KeyManage(tkinter.Toplevel):
             input_window = InputWindow('描述  :', True)
             self.wait_window(input_window)
             if prikey and pubkey:
-                supports.add_userkey(prikey.group().encode(), pubkey.group().encode(),
+                utils.add_userkey(prikey.group().encode(), pubkey.group().encode(),
                                      input_window.result, self.database)
             elif not prikey and pubkey:
-                supports.add_thirdkey(pubkey.group().encode(), input_window.result, self.database)
+                utils.add_thirdkey(pubkey.group().encode(), input_window.result, self.database)
             else:
                 tkinter.messagebox.showerror('Error', '密钥格式无效')
             self.freshkeylist()
@@ -273,16 +273,16 @@ class KeyManage(tkinter.Toplevel):
         with open(path, 'w') as file_out:
             u_id = self.get_u_id(key_type)
             if key_type == 0:
-                _, pubkey = supports.get_userkey(u_id, self.database)
+                _, pubkey = utils.get_userkey(u_id, self.database)
                 file_out.write(pubkey.decode())
             else:
-                pubkey = supports.get_thirdkey(u_id, self.database).decode()
+                pubkey = utils.get_thirdkey(u_id, self.database).decode()
                 file_out.write(pubkey)
     
     def export_pri_key(self, path: str):
         with open(path, 'wb') as file_out:
             u_id = self.get_u_id(0)
-            prikey, pubkey = supports.get_userkey(u_id, self.database)
+            prikey, pubkey = utils.get_userkey(u_id, self.database)
             file_out.write(prikey)
             file_out.write(pubkey)
 
@@ -313,7 +313,7 @@ class MainWindows(tkinter.Tk):
         self.getkeylist()
         self.setupUI()
 
-        self.cfg = supports.get_cfg(self.database)
+        self.cfg = utils.get_cfg(self.database)
         self.cfg_url_entry.insert('0', self.cfg[0])
         self.dir_save_entry.insert('0', self.cfg[1])
         self.dir_out_entry.insert('0', self.cfg[1])
@@ -431,8 +431,8 @@ class MainWindows(tkinter.Tk):
         tabs.grid(column=0, row=0)
 
     def getkeylist(self):
-        self.userkeydict = supports.get_keydict('UserKeys', self.database)
-        self.thirdkeydict = supports.get_keydict('ThirdKeys', self.database)
+        self.userkeydict = utils.get_keydict('UserKeys', self.database)
+        self.thirdkeydict = utils.get_keydict('ThirdKeys', self.database)
         self.userkeylist = list(self.userkeydict.keys())
         self.thirdkeylist = list(self.thirdkeydict.keys())
 
@@ -443,12 +443,12 @@ class MainWindows(tkinter.Tk):
 
     def select_userkey(self, describe: str):
         u_id = self.userkeydict[describe]
-        prikey_t, pubkey_t = supports.get_userkey(u_id, self.database)
+        prikey_t, pubkey_t = utils.get_userkey(u_id, self.database)
 
         for _ in range(5):
             input_window = InputWindow('密码  :', False)
             self.wait_window(input_window)
-            status, prikey, pubkey = supports.load_key(pubkey_t, prikey_t, input_window.result)
+            status, prikey, pubkey = utils.load_key(pubkey_t, prikey_t, input_window.result)
             if not status: tkinter.messagebox.showwarning('Warning', '密码错误'); continue
             self.prikey, self.pubkey = prikey, pubkey; break
 
@@ -458,14 +458,14 @@ class MainWindows(tkinter.Tk):
 
     def select_thirdkey(self, describe):
         u_id = self.thirdkeydict[describe]
-        self.thirdkey = supports.load_key(supports.get_thirdkey(u_id, self.database))
+        self.thirdkey = utils.load_key(utils.get_thirdkey(u_id, self.database))
     
     def save_cfg(self):
         _url = self.cfg_url_entry.get()
         _outputdir = self.dir_save_entry.get().rstrip('/')
         _defaultkey = self.userkey_ls.get()
 
-        supports.alt_cfg(_url, _outputdir, _defaultkey, self.database)
+        utils.alt_cfg(_url, _outputdir, _defaultkey, self.database)
 
         self.dir_out_entry.delete('0', 'end')
         self.dir_out_entry.insert('0', _outputdir)
@@ -479,17 +479,17 @@ class MainWindows(tkinter.Tk):
     def gen_key(self):
         input_window = InputWindow('密码  :', False)
         self.wait_window(input_window)
-        prikey, pubkey = supports.gen_rsakey(2048, input_window.result)
+        prikey, pubkey = utils.gen_rsakey(2048, input_window.result)
         input_window = InputWindow('描述  :', True)
         self.wait_window(input_window)
         describe = input_window.result if input_window.result else 'UserKey'
-        supports.add_userkey(prikey, pubkey, describe, self.database)
+        utils.add_userkey(prikey, pubkey, describe, self.database)
         self.freshkeylist()
 
     def encrypt_text(self):
         message = self.inputbox.get(index1='0.0', index2='end').encode()
-        enc_aes_key, enc_message = supports.composite_encrypt(self.thirdkey, message)
-        sig = supports.pss_sign(self.prikey, message) if self.sign_check.get() else b'No sig'
+        enc_aes_key, enc_message = utils.composite_encrypt(self.thirdkey, message)
+        sig = utils.pss_sign(self.prikey, message) if self.sign_check.get() else b'No sig'
 
         b64ed_aes_key = base64.b64encode(enc_aes_key).decode()
         b64ed_message = base64.b64encode(enc_message).decode()
@@ -516,9 +516,9 @@ class MainWindows(tkinter.Tk):
             tkinter.messagebox.showerror('Error', '密文已损坏')
             return
 
-        message = supports.composite_decrypt(
+        message = utils.composite_decrypt(
             self.prikey, enc_message, enc_aes_key)
-        sig_status = supports.pss_verify(
+        sig_status = utils.pss_verify(
             self.thirdkey, message, sig) if sig != b'No sig' else False
         result_window = ResultWindow(message.decode(), 0, sig_status)
 
@@ -539,18 +539,18 @@ class MainWindows(tkinter.Tk):
         file_hasher = SHA256.new()
 
         file_info = aes_key + b'^&%&^' + os.path.basename(path_i).encode()
-        enc_file_info = supports.rsa_encrypt(self.thirdkey, file_info)
+        enc_file_info = utils.rsa_encrypt(self.thirdkey, file_info)
 
         input_window = InputWindow('文件名:', True)
         self.wait_window(input_window)
 
         with open(f'{path_o}/{input_window.result}.ref', 'wb') as file_out:
             file_out.seek(1024)
-            for block, status in supports.read_file(path_i, 0):
+            for block, status in utils.read_file(path_i, 0):
                 sig_hasher.update(block)
-                file_out.write(supports.aes_encrypt(aes_key, block, status))
+                file_out.write(utils.aes_encrypt(aes_key, block, status))
                 self.progressbar['value'] = self.progressbar['value'] + step
-            sig = supports.pss_sign(self.prikey, None, sig_hasher)
+            sig = utils.pss_sign(self.prikey, None, sig_hasher)
             final_file_info = base64.b64encode(enc_file_info) + b'.' + base64.b64encode(sig)
 
             file_out.seek(35, 0)
@@ -558,7 +558,7 @@ class MainWindows(tkinter.Tk):
             file_out.write(final_file_info)
             file_out.seek(0, 0)
 
-            for block, _ in supports.read_file(f'{path_o}/{input_window.result}.ref', 35):
+            for block, _ in utils.read_file(f'{path_o}/{input_window.result}.ref', 35):
                 file_hasher.update(block)
                 self.progressbar['value'] = self.progressbar['value'] + step
 
@@ -585,7 +585,7 @@ class MainWindows(tkinter.Tk):
                 tkinter.messagebox.showerror('Error', '文件解析失败')
                 self.file_decrypt_btn['state'] = 'normal'; return
 
-            for block, _ in supports.read_file(path_i, 35):
+            for block, _ in utils.read_file(path_i, 35):
                 file_hasher.update(block)
 
             if file_in.read(32) != file_hasher.digest():
@@ -597,7 +597,7 @@ class MainWindows(tkinter.Tk):
         enc_file_info = base64.b64decode(enc_file_info)
         sig = base64.b64decode(sig)
 
-        try: file_info = supports.rsa_decrypt(self.prikey, enc_file_info)
+        try: file_info = utils.rsa_decrypt(self.prikey, enc_file_info)
         except Exception as E:
             tkinter.messagebox.showerror('Error', '文件信息解密失败')
             self.file_decrypt_btn['state'] = 'normal'; return
@@ -605,20 +605,20 @@ class MainWindows(tkinter.Tk):
         aes_key, filename = file_info.split(b'^&%&^')
 
         with open(f'{path_o}/{filename.decode()}', 'wb') as file_out:
-            for enc_block, status in supports.read_file(path_i, 1024):
-                block = supports.aes_decrypt(aes_key, enc_block, status)
+            for enc_block, status in utils.read_file(path_i, 1024):
+                block = utils.aes_decrypt(aes_key, enc_block, status)
                 sig_hasher.update(block)
                 file_out.write(block)
                 self.progressbar['value'] = self.progressbar['value'] + step
 
-        sig_status = supports.pss_verify(self.pubkey, None, sig, sig_hasher)
+        sig_status = utils.pss_verify(self.pubkey, None, sig, sig_hasher)
         self.progressbar['value'] = 0
         self.file_decrypt_btn['state'] = 'normal'
         result_window = ResultWindow(path_o, 1, sig_status)
 
 
 if __name__ == '__main__':
-    supports.gen_database()
+    utils.gen_database()
     database = sqlite3.connect('keyring.db')
     app = MainWindows(database)
     app.mainloop()
