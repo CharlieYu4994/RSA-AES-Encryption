@@ -3,7 +3,11 @@ from Crypto.PublicKey import RSA
 from Crypto.Random import get_random_bytes
 from Crypto.Signature import pss
 from Crypto.Hash import SHA256
-import sqlite3, os
+from typing import Tuple, Union
+import sqlite3, os, base64, re
+
+msg_prefix = '-----BEGIN MESSAGE-----\n'
+msg_suffix = '\n-----END MESSAGE-----'
 
 
 # ------------------------------------BASIC Encrypt Part---------------------------------- #
@@ -31,7 +35,7 @@ def rsa_decrypt(_prikey, _data: bytes) -> bytes:
     _cipher = PKCS1_OAEP.new(_prikey)
     return _cipher.decrypt(_data)
 
-def composite_encrypt(_pubkey, _data: bytes) -> bytes:
+def composite_encrypt(_pubkey, _data: bytes) -> Tuple[bytes, bytes]:
     _session_key = get_random_bytes(16)
     return rsa_encrypt(_pubkey, _session_key), aes_encrypt(_session_key, _data)
 
@@ -52,7 +56,7 @@ def pss_verify(_pubkey, _data: bytes, _signature: bytes, _hash=None) -> bool:
     except Exception as E:
         return False
 
-def gen_rsakey(_length: int, _passphrase: str) -> bytes:
+def gen_rsakey(_length: int, _passphrase: str) -> Tuple[bytes, bytes]:
     _key = RSA.generate(_length)
     return _key.export_key(passphrase=_passphrase if _passphrase else None),\
            _key.publickey().export_key()
@@ -153,7 +157,7 @@ def get_res(_field: str, _db) -> str:
     return _cursor.fetchall()[0][0]
 
 # -----------------------------------------Other Part------------------------------------- #
-def read_file(_path: str, _seek: int):
+def read_file(_path: str, _seek: int) -> Tuple[bytes, bool]:
     BLOCK_SIZE = 1048576
     with open(_path, 'rb') as f:
         if _seek: f.seek(_seek, 0)
@@ -177,6 +181,103 @@ def alt_cfg(_siteroot: str, _outputdir: str, _defaultkey: str, _db):
     alt_res('siteroot', _siteroot, _db)
     alt_res('outputpath', _outputdir, _db)
     alt_res('defaultkey', _defaultkey, _db)
+
+# -----------------------------------------High Level------------------------------------- #
+def encrypt_text(_prikey, _thirdkey, _message: bytes, _sign: bool) -> str:
+    _enc_aes_key, _enc_message = composite_encrypt(_thirdkey, _message)
+    _sig = pss_sign(_prikey, _message) if _sign else b'No sig'
+
+    _b64ed_aes_key = base64.b64encode(_enc_aes_key).decode()
+    _b64ed_message = base64.b64encode(_enc_message).decode()
+    _b64ed_sig = base64.b64encode(_sig).decode()
+
+    return f'{msg_prefix}{_b64ed_aes_key}.{_b64ed_message}.{_b64ed_sig}{msg_suffix}'
+
+def decrypt_text(_prikey, _thirdkey, _message: str) -> Tuple[bool, int, str]:
+        message_t = _message[:-1].replace('\n', '')
+        message_t = re.search(r'(?<=-----BEGIN MESSAGE-----).*?(?=-----END MESSAGE-----)', message_t)
+        if not message_t: return False, -1, ''
+
+        _b64ed_aes_key, _b64ed_message, _b64ed_sig = message_t.group().split('.')
+        try:
+            _enc_aes_key = base64.b64decode(_b64ed_aes_key.encode())
+            _enc_message = base64.b64decode(_b64ed_message.encode())
+            _sig = base64.b64decode(_b64ed_sig.encode())
+        except binascii.Error: return False, -2, ''
+
+        _message = composite_decrypt(_prikey, _enc_message, _enc_aes_key)
+        _sig_status = pss_verify(_thirdkey, _message, _sig) if _sig != b'No sig' else False
+        return True, 0 if _sig_status else 1, _message.decode()
+
+def encrypt_file(_prikey, _thirdkey, _path_i: str, _path_o: str, _filename: str) -> int:
+    _aes_key = get_random_bytes(16)
+        
+    _file_size = os.path.getsize(_path_i) / 1048576
+    _step = 5000 / (_file_size if _file_size >= 1 else 1)
+
+    _sig_hasher = SHA256.new()
+    _file_hasher = SHA256.new()
+
+    _file_info = _aes_key + b'^&%&^' + os.path.basename(_path_i).encode()
+    _enc_file_info = rsa_encrypt(_thirdkey, _file_info)
+
+    with open(f'{_path_o}/{_filename}.ref', 'wb') as file_out:
+        file_out.seek(1024)
+        for block, status in read_file(_path_i, 0):
+            _sig_hasher.update(block)
+            file_out.write(aes_encrypt(_aes_key, block, status))
+            yield _step
+        _sig = pss_sign(_prikey, None, _sig_hasher)
+        _final_file_info = base64.b64encode(_enc_file_info) + b'.' + base64.b64encode(_sig)
+
+        file_out.seek(35, 0)
+        file_out.write(str(len(_final_file_info)).encode())
+        file_out.write(_final_file_info)
+        file_out.seek(0, 0)
+
+        for block, _ in read_file(f'{_path_o}/{_filename}.ref', 35):
+            _file_hasher.update(block)
+            yield _step
+
+        file_out.write(b'REF')
+        file_out.write(_file_hasher.digest())
+    return
+
+def decrypt_file(_prikey, _thirdkey, _path_i: str, _path_o: str) -> Tuple[bool, int, Union[str, int]]:
+    _file_size = os.path.getsize(_path_i) / 1048576
+    _step = 10000 / (_file_size if _file_size >= 1 else 1)
+
+    _sig_hasher = SHA256.new()
+    _file_hasher = SHA256.new()
+
+    with open(_path_i, 'rb') as file_in:
+        if file_in.read(3) != b'REF': yield False, -1, ''; return
+
+        for block, _ in read_file(_path_i, 35):
+            _file_hasher.update(block)
+
+        if file_in.read(32) != _file_hasher.digest(): yield False, -2, ''; return
+
+        _enc_file_info, _sig = file_in.read(int(file_in.read(3))).split(b'.')
+
+    _enc_file_info = base64.b64decode(_enc_file_info)
+    _sig = base64.b64decode(_sig)
+
+    try: _file_info = rsa_decrypt(_prikey, _enc_file_info)
+    except Exception as E: yield False, -1, str(E); return
+
+    _aes_key, _filename = _file_info.split(b'^&%&^')
+
+    with open(f'{_path_o}/{_filename.decode()}', 'wb') as file_out:
+        for enc_block, status in read_file(_path_i, 1024):
+            block = aes_decrypt(_aes_key, enc_block, status)
+            _sig_hasher.update(block)
+            file_out.write(block)
+            yield True, 2, _step
+
+    _sig_status = pss_verify(_thirdkey, None, _sig, _sig_hasher)
+    yield True, 0 if _sig_status else 1, ''; return
+
 
 # --------------------------------------------Debug--------------------------------------- #
 if __name__ == '__main__':

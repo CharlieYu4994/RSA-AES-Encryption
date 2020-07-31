@@ -1,4 +1,4 @@
-import tkinter, sys, os, utils
+import tkinter, sys, os, utils, re, pyperclip
 from tkinter.simpledialog import askstring
 from tkinter import scrolledtext, filedialog, ttk
 
