@@ -240,23 +240,17 @@ class KeyManage(tkinter.Toplevel):
 
     def alt_pass(self):
         u_id = self.get_u_id(0)
-        input_window = InputWindow('旧密码:', False)
-        self.wait_window(input_window)
-        alter = utils.alt_pass(u_id, 5, input_window.result, self.database)
-        status = alter.send(None)
-        while True:
-            if   status ==  0: break
-            elif status == -1: tkinter.messagebox.showwarning('Warning', '密码五次输入错误，请重新选择'); return
-            input_window = InputWindow('旧密码:', False)
-            self.wait_window(input_window)
-            status = alter.send(input_window.result)
-        
         input_window = InputWindow('新密码:', False)
         self.wait_window(input_window)
-        try: alter.send(input_window.result)
-        except Exception as E: pass
-        return
-        
+        password_n = input_window.result
+        for _ in range(5):
+            input_window = InputWindow('旧密码:', False)
+            self.wait_window(input_window)
+            passwoed_o = input_window.result
+            status = utils.alt_pass(u_id, passwoed_o, password_n, self.database)
+            if status: return
+            else: tkinter.messagebox.showwarning('Warning', '密码错误')
+        tkinter.messagebox.showwarning('Warning', '密码五次输入错误，请重试'); return
 
 
     def import_key(self, path: str):

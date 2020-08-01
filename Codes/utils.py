@@ -283,17 +283,12 @@ def decrypt_file(_prikey: RsaKey, _thirdkey: RsaKey, _path_i: str, _path_o: str)
     _sig_status = pss_verify(_thirdkey, None, _sig, _sig_hasher)
     yield True, 0 if _sig_status else 1, ''; return
 
-def alt_pass(_id: int, _time: int, _passphrase_o: str, _db: Connection) -> Generator[int, str, None]:
+def alt_pass(_id: int, _passphrase_o: str, _passphrase_n: str, _db: Connection) -> bool:
     _prikey_t, _pubkey_t = get_userkey(_id, _db)
-
-    for _ in range(_time):
-        _status, _prikey, _ = load_key(_pubkey_t, _prikey_t, _passphrase_o)
-        if not _status: _passphrase_o = yield 1; continue
-        break
-    if not _status: yield -1; return
-    _passphrase_n = yield 0
+    _status, _prikey, _ = load_key(_pubkey_t, _prikey_t, _passphrase_o)
+    if not _status: return False
     alt_key(_id, 'PriKey', expert_key(_prikey, _passphrase_n).decode(), 'UserKeys', _db)
-    return
+    return True
 
 
 # --------------------------------------------Debug--------------------------------------- #
