@@ -9,6 +9,7 @@ import sqlite3, os, base64, re, binascii
 from sqlite3 import Connection
 
 standard_return = Tuple[bool, int, Union[str, int, float]]
+standard_keyrtn = Tuple[bool, Union[RsaKey, bytes], Union[RsaKey, bytes]]
 
 msg_prefix = '-----BEGIN MESSAGE-----\n'
 msg_suffix = '\n-----END MESSAGE-----'
@@ -60,19 +61,19 @@ def pss_verify(_pubkey: RsaKey, _data: Union[bytes, None], _signature: bytes, _h
     except Exception as E:
         return False
 
-def gen_rsakey(_length: int, _passphrase: str) -> Tuple[bytes, bytes]:
+def gen_rsakey(_length: int, _passphrase: str) -> standard_keyrtn:
     _key = RSA.generate(_length)
-    return _key.export_key(passphrase=_passphrase if _passphrase else None),\
+    return True, _key.export_key(passphrase=_passphrase if _passphrase else None),\
            _key.publickey().export_key()
 
-def load_key(_pubkey: bytes, _prikey: Union[bytes, None] = None, _passphrase: Optional[str] = ''):
+def load_key(_pubkey: bytes, _prikey: Union[bytes, None] = None, _passphrase: Optional[str] = '') -> standard_keyrtn:
     if _prikey:
         try:
             _pubkey_r = RSA.import_key(_pubkey)
             _prikey_r = RSA.import_key(_prikey, passphrase=_passphrase if _passphrase else None)
-        except Exception as E: return False, str(E), ''
+        except Exception as E: return False, str(E).encode(), b''
         else: return True, _prikey_r, _pubkey_r
-    else: return RSA.import_key(_pubkey)
+    else: return True, RSA.import_key(_pubkey), b''
 
 def expert_key(_prikey, _passphrase: str) -> bytes:
     return _prikey.export_key(passphrase=_passphrase if _passphrase else None)
@@ -281,6 +282,18 @@ def decrypt_file(_prikey: RsaKey, _thirdkey: RsaKey, _path_i: str, _path_o: str)
 
     _sig_status = pss_verify(_thirdkey, None, _sig, _sig_hasher)
     yield True, 0 if _sig_status else 1, ''; return
+
+def alt_pass(_id: int, _time: int, _passphrase_o: str, _db: Connection) -> Generator[int, str, None]:
+    _prikey_t, _pubkey_t = get_userkey(_id, _db)
+
+    for _ in range(_time):
+        _status, _prikey, _ = load_key(_pubkey_t, _prikey_t, _passphrase_o)
+        if not _status: _passphrase_o = yield 1; continue
+        break
+    if not _status: yield -1; return
+    _passphrase_n = yield 0
+    alt_key(_id, 'PriKey', expert_key(_prikey, _passphrase_n).decode(), 'UserKeys', _db)
+    return
 
 
 # --------------------------------------------Debug--------------------------------------- #

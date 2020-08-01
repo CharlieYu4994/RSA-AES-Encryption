@@ -1,4 +1,4 @@
-import  sqlite3, sys, utils, dialog, cmd
+import  sqlite3, sys, utils, dialog
 
 
 if __name__ == '__main__':
@@ -7,5 +7,3 @@ if __name__ == '__main__':
     if len(sys.argv) < 2:
         app = dialog.MainWindows(database)
         app.mainloop()
-    elif sys.argv[1] == '-c':
-        cmd.command_mode(database)

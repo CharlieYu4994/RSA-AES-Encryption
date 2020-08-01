@@ -1,6 +1,6 @@
 import tkinter, sys, re, pyperclip, threading, os, utils
 from tkinter import scrolledtext, filedialog, ttk
-from typing import Dict, List
+from typing import Dict, List, Union
 import tkinter.messagebox
 
 if getattr(sys, 'frozen', None):
@@ -23,31 +23,39 @@ class InputWindow(tkinter.Toplevel):
         dispalyw = self.winfo_screenwidth() // 2
         self.prompt = prompt
         self.show = not show
+
         self.iconbitmap(icon)
         self.protocol('WM_DELETE_WINDOW', lambda: self.destroy())
         self.title('Input')
         self.geometry(f'374x110+{dispalyw-187}+{displayh-90}')
         self.resizable(0, 0)
         self.setupUI()
-        self.grab_set()
         self.wm_attributes('-topmost', 1)
+
+        self.result_entry.focus_set()
+        self.grab_set()
 
     def setupUI(self):
         result_box = ttk.Frame(self)
+
         result_l = ttk.Label(result_box, text=self.prompt)
         result_l.grid(column=0, row=0)
+
         self.result_entry = ttk.Entry(result_box, width=32)
         self.result_entry.grid(column=1, row=0)
         if self.show: self.result_entry['show'] = '*'
         self.result_entry.bind('<Return>', lambda event: self.submit())
-        self.result_entry.focus_set()
+
         result_box.grid(column=0, row=0, padx=15, pady=15)
 
         btn_box = ttk.Frame(self)
+
         o_btn = ttk.Button(btn_box, text='确定', width=16, command=lambda: self.submit())
         o_btn.grid(column=0, row=0, padx=16)
+
         c_btn = ttk.Button(btn_box, text='取消', width=16, command=lambda: self.destroy())
         c_btn.grid(column=1, row=0, padx=16)
+
         btn_box.grid(column=0, row=1, pady=12)
 
     def submit(self):
@@ -62,21 +70,20 @@ class ResultWindow(tkinter.Toplevel):
 
     result = ''
 
-    def __init__(self, _result: str, _type: int, sig_status=True):
+    def __init__(self, _result: str, _type: int, sig_status: Union[bool, None]):
         super().__init__()
         self.displayh = self.winfo_screenheight() // 2
         self.dispalyw = self.winfo_screenwidth() // 2
         self.result = _result
         self.sig_status = sig_status
+
         self.iconbitmap(icon)
         self.title('Result')
-
-        if   _type == 0: self.setupUI_T()
-        elif _type == 1: self.setupUI_F()
-
+        if   _type == 0: self.setupUI_text()
+        elif _type == 1: self.setupUI_file()
         self.resizable(0, 0)
 
-    def setupUI_T(self):
+    def setupUI_text(self):
         self.geometry(f'385x225+{self.dispalyw-192}+{self.displayh-150}')
 
         textbox = scrolledtext.ScrolledText(self, width=40, height=10)
@@ -95,7 +102,7 @@ class ResultWindow(tkinter.Toplevel):
                            font=('', '12'))
             sign_l.grid(column=0, row=1)
 
-    def setupUI_F(self):
+    def setupUI_file(self):
         self.geometry(f'383x125+{self.dispalyw-191}+{self.displayh-120}')
         textbox = tkinter.Text(self, width=42, height=4)
         textbox.grid(column=0, row=0, columnspan=3)
@@ -134,11 +141,13 @@ class KeyManage(tkinter.Toplevel):
         self.database = _database
         displayh = self.winfo_screenheight() // 2
         dispalyw = self.winfo_screenwidth() // 2
+
         self.iconbitmap(icon)
         self.title('KeyManager')
         self.geometry(f'370x300+{dispalyw-185}+{displayh-150}')
         self.resizable(0, 0)
         self.setupUI()
+
         self.freshkeylist()
         self.grab_set()
 
@@ -231,21 +240,24 @@ class KeyManage(tkinter.Toplevel):
 
     def alt_pass(self):
         u_id = self.get_u_id(0)
-        prikey_t, pubkey_t = utils.get_userkey(u_id, self.database)
-
-        for _ in range(5):
+        input_window = InputWindow('旧密码:', False)
+        self.wait_window(input_window)
+        alter = utils.alt_pass(u_id, 5, input_window.result, self.database)
+        status = alter.send(None)
+        while True:
+            if   status ==  0: break
+            elif status == -1: tkinter.messagebox.showwarning('Warning', '密码五次输入错误，请重新选择'); return
             input_window = InputWindow('旧密码:', False)
             self.wait_window(input_window)
-            status, prikey, _ = utils.load_key(pubkey_t, prikey_t, input_window.result)
-            if not status: tkinter.messagebox.showwarning('Warning', '密码错误'); continue
-            break
-        if not status:
-            tkinter.messagebox.showwarning('Warning', '密码五次输入错误，请重新选择'); return
+            status = alter.send(input_window.result)
+        
         input_window = InputWindow('新密码:', False)
         self.wait_window(input_window)
-        password = input_window.result
-        utils.alt_key(u_id, 'PriKey', utils.expert_key(prikey, password).decode(),
-                         'UserKeys', self.database)
+        try: alter.send(input_window.result)
+        except Exception as E: pass
+        return
+        
+
 
     def import_key(self, path: str):
         with open(path, 'rb') as file_in:
@@ -453,7 +465,7 @@ class MainWindows(tkinter.Tk):
 
     def select_thirdkey(self, describe):
         u_id = self.thirdkeydict[describe]
-        self.thirdkey = utils.load_key(utils.get_thirdkey(u_id, self.database))
+        _, self.thirdkey, _ = utils.load_key(utils.get_thirdkey(u_id, self.database))
 
     def save_cfg(self):
         _url = self.cfg_url_entry.get()
@@ -474,7 +486,7 @@ class MainWindows(tkinter.Tk):
     def gen_key(self):
         input_window = InputWindow('密码  :', False)
         self.wait_window(input_window)
-        prikey, pubkey = utils.gen_rsakey(2048, input_window.result)
+        _, prikey, pubkey = utils.gen_rsakey(2048, input_window.result)
         input_window = InputWindow('描述  :', True)
         self.wait_window(input_window)
         describe = input_window.result if input_window.result else 'UserKey'
