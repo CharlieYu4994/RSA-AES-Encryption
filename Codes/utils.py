@@ -1,10 +1,14 @@
 from Crypto.Cipher import AES, PKCS1_OAEP
 from Crypto.PublicKey import RSA
+from Crypto.PublicKey.RSA import RsaKey
 from Crypto.Random import get_random_bytes
 from Crypto.Signature import pss
 from Crypto.Hash import SHA256
-from typing import Tuple, Union
-import sqlite3, os, base64, re
+from typing import Tuple, Union, Generator, Dict, Optional
+import sqlite3, os, base64, re, binascii
+from sqlite3 import Connection
+
+standard_return = Tuple[bool, int, Union[str, int, float]]
 
 msg_prefix = '-----BEGIN MESSAGE-----\n'
 msg_suffix = '\n-----END MESSAGE-----'
@@ -27,27 +31,27 @@ def aes_decrypt(_key: bytes, _data: bytes, _pad=True) -> bytes:
     _cipher = AES.new(_key, AES.MODE_CBC, _key[0:16])
     return pkcs7unpadding(_cipher.decrypt(_data)) if _pad else _cipher.decrypt(_data)
 
-def rsa_encrypt(_pubkey, _data: bytes) -> bytes:
+def rsa_encrypt(_pubkey: RsaKey, _data: bytes) -> bytes:
     _cipher = PKCS1_OAEP.new(_pubkey)
     return _cipher.encrypt(_data)
 
-def rsa_decrypt(_prikey, _data: bytes) -> bytes:
+def rsa_decrypt(_prikey: RsaKey, _data: bytes) -> bytes:
     _cipher = PKCS1_OAEP.new(_prikey)
     return _cipher.decrypt(_data)
 
-def composite_encrypt(_pubkey, _data: bytes) -> Tuple[bytes, bytes]:
+def composite_encrypt(_pubkey: RsaKey, _data: bytes) -> Tuple[bytes, bytes]:
     _session_key = get_random_bytes(16)
     return rsa_encrypt(_pubkey, _session_key), aes_encrypt(_session_key, _data)
 
-def composite_decrypt(_prikey, _data: bytes, _session_key: bytes) -> bytes:
+def composite_decrypt(_prikey: RsaKey, _data: bytes, _session_key: bytes) -> bytes:
     _session_key = rsa_decrypt(_prikey, _session_key)
     return aes_decrypt(_session_key, _data)
 
-def pss_sign(_prikey, _data: bytes, _hash=None) -> bytes:
+def pss_sign(_prikey: RsaKey, _data: Union[bytes, None], _hash=None) -> bytes:
     _hash = _hash if _hash else SHA256.new(_data)
     return pss.new(_prikey).sign(_hash)
 
-def pss_verify(_pubkey, _data: bytes, _signature: bytes, _hash=None) -> bool:
+def pss_verify(_pubkey: RsaKey, _data: Union[bytes, None], _signature: bytes, _hash=None) -> bool:
     _verifier = pss.new(_pubkey)
     _hash = _hash if _hash else SHA256.new(_data)
     try:
@@ -61,13 +65,13 @@ def gen_rsakey(_length: int, _passphrase: str) -> Tuple[bytes, bytes]:
     return _key.export_key(passphrase=_passphrase if _passphrase else None),\
            _key.publickey().export_key()
 
-def load_key(_pubkey: bytes, _prikey=None, _passphrase=None):
+def load_key(_pubkey: bytes, _prikey: Union[bytes, None] = None, _passphrase: Optional[str] = ''):
     if _prikey:
         try:
-            _pubkey = RSA.import_key(_pubkey)
-            _prikey = RSA.import_key(_prikey, passphrase=_passphrase if _passphrase else None)
+            _pubkey_r = RSA.import_key(_pubkey)
+            _prikey_r = RSA.import_key(_prikey, passphrase=_passphrase if _passphrase else None)
         except Exception as E: return False, str(E), ''
-        else: return True, _prikey, _pubkey
+        else: return True, _prikey_r, _pubkey_r
     else: return RSA.import_key(_pubkey)
 
 def expert_key(_prikey, _passphrase: str) -> bytes:
@@ -95,76 +99,76 @@ def gen_database():
         _db.commit()
         _db.close()
 
-def add_userkey(_prikey: bytes, _pubkey: bytes, _describe: str, _db):
+def add_userkey(_prikey: bytes, _pubkey: bytes, _describe: str, _db: Connection):
     _cursor = _db.cursor()
     _cursor.execute(f"INSERT INTO UserKeys (PubKey, PriKey, Describe) \
 			          VALUES ('{_pubkey.decode()}', '{_prikey.decode()}', '{_describe}')")
     _db.commit()
 
-def add_thirdkey(_pubkey: bytes, _describe: str, _db):
+def add_thirdkey(_pubkey: bytes, _describe: str, _db: Connection):
     _cursor = _db.cursor()
     _cursor.execute(f"INSERT INTO ThirdKeys (PubKey, Describe) \
 			          VALUES ('{_pubkey.decode()}', '{_describe}')")
     _db.commit()
 
-def del_key(_id: int, _table: str, _db):
+def del_key(_id: int, _table: str, _db: Connection):
     _cursor = _db.cursor()
     _cursor.execute(f"DELETE FROM {_table} WHERE ID='{_id}'")
     _db.commit()
 
-def alt_key(_id: int, _field: str, _value: str, _table: str,_db):
+def alt_key(_id: int, _field: str, _value: str, _table: str, _db: Connection):
     _cursor = _db.cursor()
     _cursor.execute(f"UPDATE {_table} SET '{_field}'='{_value}' WHERE ID='{_id}'")
     _db.commit()
 
-def get_keydict(_table: str, _db) -> dict:
+def get_keydict(_table: str, _db: Connection) -> Dict[str, int]:
     _keydict = dict()
     _cursor = _db.cursor()
     for row in _cursor.execute(f"SELECT ID, Describe FROM '{_table}'").fetchall():
         _keydict[f'{row[1]} ({str(row[0])})'] = row[0]
     return _keydict
 
-def get_userkey(_id: int, _db) -> bytes:
+def get_userkey(_id: int, _db: Connection) -> Tuple[bytes, bytes]:
     _cursor = _db.cursor()
     _pubkey, _prikey = _cursor.execute(f"SELECT PubKey, PriKey FROM UserKeys \
                                          WHERE ID='{_id}'").fetchall()[0]
     return _prikey.encode(), _pubkey.encode()
 
-def get_thirdkey(_id: int, _db) -> bytes:
+def get_thirdkey(_id: int, _db: Connection) -> bytes:
     _cursor = _db.cursor()
     _cursor.execute(f"SELECT PubKey FROM ThirdKeys WHERE ID='{_id}'")
     return _cursor.fetchall()[0][0].encode()
 
-def add_res(_field: str, _value: str, _db):
+def add_res(_field: str, _value: str, _db: Connection):
     _cursor = _db.cursor()
     _cursor.execute(f"INSERT INTO Resources (Field, Value)\
                       VALUES ('{_field}', '{_value}')")
     _db.commit()
 
-def del_res(_field: str, _db):
+def del_res(_field: str, _db: Connection):
     _cursor = _db.cursor()
     _cursor.execute(f"DELETE FROM Resources WHERE Field='{_field}'")
     _db.commit()
 
-def alt_res(_field: str, _value: str, _db):
+def alt_res(_field: str, _value: str, _db: Connection):
     _cursor = _db.cursor()
     _cursor.execute(f"UPDATE Resources SET Value='{_value}' WHERE Field='{_field}'")
     _db.commit()
 
-def get_res(_field: str, _db) -> str:
+def get_res(_field: str, _db: Connection) -> str:
     _cursor = _db.cursor()
     _cursor.execute(f"SELECT Value FROM Resources WHERE Field='{_field}'")
     return _cursor.fetchall()[0][0]
 
 # -----------------------------------------Other Part------------------------------------- #
-def read_file(_path: str, _seek: int) -> Tuple[bytes, bool]:
+def read_file(_path: str, _seek: int) -> Generator[Tuple[bytes, bool], None, None]:
     BLOCK_SIZE = 1048576
     with open(_path, 'rb') as f:
         if _seek: f.seek(_seek, 0)
         while True:
             block = f.read(BLOCK_SIZE)
             if block: yield block, len(block) != BLOCK_SIZE
-            else: return 'Done'
+            else: return
 
 def get_cfg(_db):
     _siteroot = get_res('siteroot', _db)
@@ -194,8 +198,8 @@ def encrypt_text(_prikey, _thirdkey, _message: bytes, _sign: bool) -> str:
     return f'{msg_prefix}{_b64ed_aes_key}.{_b64ed_message}.{_b64ed_sig}{msg_suffix}'
 
 def decrypt_text(_prikey, _thirdkey, _message: str) -> Tuple[bool, int, str]:
-        message_t = _message[:-1].replace('\n', '')
-        message_t = re.search(r'(?<=-----BEGIN MESSAGE-----).*?(?=-----END MESSAGE-----)', message_t)
+        _message = _message[:-1].replace('\n', '')
+        message_t = re.search(r'(?<=-----BEGIN MESSAGE-----).*?(?=-----END MESSAGE-----)', _message)
         if not message_t: return False, -1, ''
 
         _b64ed_aes_key, _b64ed_message, _b64ed_sig = message_t.group().split('.')
@@ -205,11 +209,11 @@ def decrypt_text(_prikey, _thirdkey, _message: str) -> Tuple[bool, int, str]:
             _sig = base64.b64decode(_b64ed_sig.encode())
         except binascii.Error: return False, -2, ''
 
-        _message = composite_decrypt(_prikey, _enc_message, _enc_aes_key)
-        _sig_status = pss_verify(_thirdkey, _message, _sig) if _sig != b'No sig' else False
-        return True, 0 if _sig_status else 1, _message.decode()
+        _message_t = composite_decrypt(_prikey, _enc_message, _enc_aes_key)
+        _sig_status = pss_verify(_thirdkey, _message_t, _sig) if _sig != b'No sig' else False
+        return True, 0 if _sig_status else 1, _message_t.decode()
 
-def encrypt_file(_prikey, _thirdkey, _path_i: str, _path_o: str, _filename: str) -> int:
+def encrypt_file(_prikey: RsaKey, _thirdkey: RsaKey, _path_i: str, _path_o: str, _filename: str) -> Generator[float, None, None]:
     _aes_key = get_random_bytes(16)
         
     _file_size = os.path.getsize(_path_i) / 1048576
@@ -243,7 +247,7 @@ def encrypt_file(_prikey, _thirdkey, _path_i: str, _path_o: str, _filename: str)
         file_out.write(_file_hasher.digest())
     return
 
-def decrypt_file(_prikey, _thirdkey, _path_i: str, _path_o: str) -> Tuple[bool, int, Union[str, int]]:
+def decrypt_file(_prikey: RsaKey, _thirdkey: RsaKey, _path_i: str, _path_o: str) -> Generator[standard_return, None, None]:
     _file_size = os.path.getsize(_path_i) / 1048576
     _step = 10000 / (_file_size if _file_size >= 1 else 1)
 

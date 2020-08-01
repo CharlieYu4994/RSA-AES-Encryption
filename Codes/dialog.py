@@ -1,5 +1,6 @@
 import tkinter, sys, re, pyperclip, threading, os, utils
 from tkinter import scrolledtext, filedialog, ttk
+from typing import Dict, List
 import tkinter.messagebox
 
 if getattr(sys, 'frozen', None):
@@ -14,7 +15,7 @@ class InputWindow(tkinter.Toplevel):
     输入窗口
     '''
 
-    result = None
+    result = ''
 
     def __init__(self, prompt: str, show: bool):
         super().__init__()
@@ -123,10 +124,10 @@ class KeyManage(tkinter.Toplevel):
     密钥管理窗口
     '''
 
-    thirdkeydict = dict()
-    userkeydict = dict()
-    thirdkeylist = list()
-    userkeylist = list()
+    thirdkeydict: Dict[str, int] = dict()
+    userkeydict: Dict[str, int] = dict()
+    thirdkeylist: List[str] = list()
+    userkeylist: List[str] = list()
 
     def __init__(self, _database):
         super().__init__()
@@ -262,15 +263,15 @@ class KeyManage(tkinter.Toplevel):
                 tkinter.messagebox.showerror('Error', '密钥格式无效')
             self.freshkeylist()
 
-    def export_key(self, key_type, path: str):
+    def export_key(self, key_type: int, path: str):
         with open(path, 'w') as file_out:
             u_id = self.get_u_id(key_type)
             if key_type == 0:
                 _, pubkey = utils.get_userkey(u_id, self.database)
                 file_out.write(pubkey.decode())
             else:
-                pubkey = utils.get_thirdkey(u_id, self.database).decode()
-                file_out.write(pubkey)
+                pubkey = utils.get_thirdkey(u_id, self.database)
+                file_out.write(pubkey.decode())
 
     def export_pri_key(self, path: str):
         with open(path, 'wb') as file_out:
@@ -290,10 +291,10 @@ class MainWindows(tkinter.Tk):
     主入口
     '''
 
-    thirdkeydict = dict()
-    userkeydict = dict()
-    thirdkeylist = list()
-    userkeylist = list()
+    thirdkeydict: Dict[str, int] = dict()
+    userkeydict: Dict[str, int] = dict()
+    thirdkeylist: List[str] = list()
+    userkeylist: List[str] = list()
     cfg = prikey = pubkey = thirdkey = None
 
     def __init__(self, _database):
@@ -329,7 +330,8 @@ class MainWindows(tkinter.Tk):
 
         footbox_page_one = ttk.Frame(page_one)
         self.sign_check = tkinter.BooleanVar()
-        signcheck = tkinter.Checkbutton(footbox_page_one, text='签名', variable=self.sign_check, takefocus=False)
+        signcheck = tkinter.Checkbutton(footbox_page_one, text='签名',
+                                        variable=self.sign_check, takefocus=False)
         signcheck.grid(column=0, row=0, padx=20)
         text_encrypt_btn = ttk.Button(footbox_page_one, width=16, text='加密', command=self.encrypt_text)
         text_encrypt_btn.grid(column=1, row=0)
