@@ -9,7 +9,7 @@
 从 Releases 页面下载
 
 # 食用说明
-~~https://blog.charlieyu4994.cn/post/encryptedcoffee/~~ （已过期）
+https://blog.charlieyu4994.cn/post/RSA-AES-Encryption-guide/
 
 # 注意
 如果发现本工具界面不对劲，请右键它，选择属性-兼容性，将高 DPI 行为改为应用程序
