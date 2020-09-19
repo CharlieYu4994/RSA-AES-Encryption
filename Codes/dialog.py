@@ -292,7 +292,7 @@ class KeyManage(tkinter.Toplevel):
         return keydict[keylist.get('active')]
 
 
-class MainWindows(tkinter.Tk):
+class MainWindows(tkinter.Tk, utils.baseinterface):
     '''
     主入口
     '''

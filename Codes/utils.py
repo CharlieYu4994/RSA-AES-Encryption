@@ -4,7 +4,7 @@ from Crypto.PublicKey.RSA import RsaKey
 from Crypto.Random import get_random_bytes
 from Crypto.Signature import pss
 from Crypto.Hash import SHA256
-from typing import Tuple, Union, Generator, Dict, Optional
+from typing import Tuple, Union, Generator, Dict, Optional, List
 import sqlite3, os, base64, re, binascii
 from sqlite3 import Connection
 
@@ -188,6 +188,128 @@ def alt_cfg(_siteroot: str, _outputdir: str, _defaultkey: str, _db):
     alt_res('defaultkey', _defaultkey, _db)
 
 # -----------------------------------------High Level------------------------------------- #
+class baseinterface(object):
+    thirdkeydict: Dict[str, int] = dict()
+    userkeydict: Dict[str, int] = dict()
+    thirdkeylist: List[str] = list()
+    userkeylist: List[str] = list()
+    cfg = prikey = pubkey = thirdkey = None
+
+    def __init__(self, _database):
+        self.database = _database
+        self.getkeylist()
+        self.cfg = get_cfg(self.database)
+    
+    def setupUI(self):
+        raise(NotImplementedError)
+    
+    def getkeylist(self):
+        self.userkeydict = get_keydict('UserKeys', self.database)
+        self.thirdkeydict = get_keydict('ThirdKeys', self.database)
+        self.userkeylist = list(self.userkeydict.keys())
+        self.thirdkeylist = list(self.thirdkeydict.keys())
+    
+    def freshkeylist(self):
+        self.getkeylist()
+    
+    def get_u_id(self, key_type: int):
+        keylist = self.userkey_ls if key_type == 0 else self.thirdkey_ls
+        keydict = self.userkeydict if key_type == 0 else self.thirdkeydict
+        return keydict[keylist.get('active')]
+    
+    def get_user_input(self, describe):
+        raise(NotImplementedError)
+
+    def select_userkey(self, describe, warnmethod , extraoperate):
+        u_id = self.userkeydict[describe]
+        prikey_t, pubkey_t = get_userkey(u_id, self.database)
+
+        for _ in range(5):
+            passphase = self.get_user_input('密码: ')
+            status, prikey, pubkey = load_key(pubkey_t, prikey_t, describe)
+            if not status: warnmethod('Warning', '密码错误'); continue
+            self.prikey, self.pubkey = prikey, pubkey; break
+
+        if not status:
+            warnmethod('Warning', '密码五次输入错误，请重新选择')
+            extraoperate()
+
+    def select_thirdkey(self, describe):
+        u_id = self.thirdkeydict[describe]
+        _, self.thirdkey, _ = load_key(get_thirdkey(u_id, self.database))
+
+    def save_cfg(self, extraoperate):
+        _url = self.cfg_url_entry.get()
+        _outputdir = self.dir_save_entry.get().rstrip('/')
+        _defaultkey = self.userkey_ls.get()
+
+        alt_cfg(_url, _outputdir, _defaultkey, self.database)
+        extraoperate()
+
+    def keymanage(self):
+        raise(NotImplementedError)
+        
+    def show_result(self):
+        raise(NotImplementedError)
+
+    def gen_key(self):
+        _, prikey, pubkey = gen_rsakey(2048, self.get_user_input('密码: '))
+        describe = self.get_user_input('描述: ')
+        describe = describe if describe else 'UserKey'
+        add_userkey(prikey, pubkey, describe, self.database)
+        self.freshkeylist()
+
+    def encrypt_text(self, message, sign_check=True):
+        final_message = encrypt_text(self.prikey, self.thirdkey, message, sign_check)
+        self.show_result(final_message, 0, None)
+
+    def decrypt_text(self, message_t, warnmethod):
+        _, status, message = decrypt_text(self.prikey, self.pubkey, message_t)
+        if   status == -2: warnmethod('Error', '密文已损坏')
+        elif status == -1: warnmethod('Error', '密文解析失败')
+        elif status >=  0: self.show_result(message, 0, True if status == 0 else False)
+
+    def encrypt_file(self, progressbar):
+        self.file_encrypt_btn['state'] = 'disabled'
+
+        path_i = self.dir_in_entry.get()
+        if self.dir_out_entry.get():
+            path_o = self.dir_out_entry.get()
+        else :
+            path_o = os.path.dirname(path_i)
+            self.dir_out_entry.insert('0', path_o)
+
+        filename = self.get_user_input('文件名: ', True)
+
+        for step in encrypt_file(self.prikey, self.pubkey, path_i, path_o, filename):
+            self.progressbar['value'] = self.progressbar['value'] + step
+
+        self.progressbar['value'] = 0
+        self.file_encrypt_btn['state'] = 'normal'
+        result_window = self.show_result(path_o, 1, None)
+
+    def decrypt_file(self):
+        self.file_decrypt_btn['state'] = 'disabled'
+
+        path_i = self.dir_in_entry.get()
+        if self.dir_out_entry.get():
+            path_o = self.dir_out_entry.get()
+        else :
+            path_o = os.path.dirname(path_i)
+            self.dir_out_entry.insert('0', path_o)
+
+        for _, status, step in utils.decrypt_file(self.prikey, self.thirdkey, path_i, path_o):
+            if   status == -2: tkinter.messagebox.showerror('Error', '文件已损坏')
+            elif status == -1: tkinter.messagebox.showerror('Error', '文件信息无效')
+            elif status ==  0: ResultWindow(path_o, 1, True)
+            elif status ==  1: ResultWindow(path_o, 1, False)
+            elif status ==  2: self.progressbar['value'] = self.progressbar['value'] + step
+
+        self.progressbar['value'] = 0
+        self.file_decrypt_btn['state'] = 'normal'
+        
+
+
 def encrypt_text(_prikey, _thirdkey, _message: bytes, _sign: bool) -> str:
     _enc_aes_key, _enc_message = composite_encrypt(_thirdkey, _message)
     _sig = pss_sign(_prikey, _message) if _sign else b'No sig'
