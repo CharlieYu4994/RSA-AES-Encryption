@@ -203,6 +203,18 @@ class baseinterface(object):
     def setupUI(self):
         raise(NotImplementedError)
     
+    def get_user_input(self, describe):
+        raise(NotImplementedError)
+    
+    def warnmethod(self):
+        raise(NotImplementedError)
+    
+    def keymanage(self):
+        raise(NotImplementedError)
+        
+    def show_result(self):
+        raise(NotImplementedError)
+    
     def getkeylist(self):
         self.userkeydict = get_keydict('UserKeys', self.database)
         self.thirdkeydict = get_keydict('ThirdKeys', self.database)
@@ -211,46 +223,27 @@ class baseinterface(object):
     
     def freshkeylist(self):
         self.getkeylist()
-    
-    def get_u_id(self, key_type: int):
-        keylist = self.userkey_ls if key_type == 0 else self.thirdkey_ls
-        keydict = self.userkeydict if key_type == 0 else self.thirdkeydict
-        return keydict[keylist.get('active')]
-    
-    def get_user_input(self, describe):
-        raise(NotImplementedError)
 
-    def select_userkey(self, describe, warnmethod , extraoperate):
+    def select_thirdkey(self, describe):
+        u_id = self.thirdkeydict[describe]
+        _, self.thirdkey, _ = load_key(get_thirdkey(u_id, self.database))
+
+    def select_userkey(self, describe, extraoperate, args):
         u_id = self.userkeydict[describe]
         prikey_t, pubkey_t = get_userkey(u_id, self.database)
 
         for _ in range(5):
             passphase = self.get_user_input('密码: ')
             status, prikey, pubkey = load_key(pubkey_t, prikey_t, describe)
-            if not status: warnmethod('Warning', '密码错误'); continue
+            if not status: self.warnmethod('Warning', '密码错误'); continue
             self.prikey, self.pubkey = prikey, pubkey; break
 
         if not status:
-            warnmethod('Warning', '密码五次输入错误，请重新选择')
-            extraoperate()
+            self.warnmethod('Warning', '密码五次输入错误，请重新选择')
+            extraoperate(*args)
 
-    def select_thirdkey(self, describe):
-        u_id = self.thirdkeydict[describe]
-        _, self.thirdkey, _ = load_key(get_thirdkey(u_id, self.database))
-
-    def save_cfg(self, extraoperate):
-        _url = self.cfg_url_entry.get()
-        _outputdir = self.dir_save_entry.get().rstrip('/')
-        _defaultkey = self.userkey_ls.get()
-
-        alt_cfg(_url, _outputdir, _defaultkey, self.database)
-        extraoperate()
-
-    def keymanage(self):
-        raise(NotImplementedError)
-        
-    def show_result(self):
-        raise(NotImplementedError)
+    def save_cfg(self, url, outputdir, defaultkey):
+        alt_cfg(url, outputdir, defaultkey, self.database)
 
     def gen_key(self):
         _, prikey, pubkey = gen_rsakey(2048, self.get_user_input('密码: '))
@@ -269,45 +262,23 @@ class baseinterface(object):
         elif status == -1: warnmethod('Error', '密文解析失败')
         elif status >=  0: self.show_result(message, 0, True if status == 0 else False)
 
-    def encrypt_file(self, progressbar):
-        self.file_encrypt_btn['state'] = 'disabled'
-
-        path_i = self.dir_in_entry.get()
-        if self.dir_out_entry.get():
-            path_o = self.dir_out_entry.get()
-        else :
-            path_o = os.path.dirname(path_i)
-            self.dir_out_entry.insert('0', path_o)
-
+    def encrypt_file(self, path_i, path_o, progressbar):
         filename = self.get_user_input('文件名: ', True)
 
         for step in encrypt_file(self.prikey, self.pubkey, path_i, path_o, filename):
-            self.progressbar['value'] = self.progressbar['value'] + step
+            progressbar['value'] = self.progressbar['value'] + step
 
-        self.progressbar['value'] = 0
-        self.file_encrypt_btn['state'] = 'normal'
+        progressbar['value'] = 0
         result_window = self.show_result(path_o, 1, None)
 
-    def decrypt_file(self):
-        self.file_decrypt_btn['state'] = 'disabled'
-
-        path_i = self.dir_in_entry.get()
-        if self.dir_out_entry.get():
-            path_o = self.dir_out_entry.get()
-        else :
-            path_o = os.path.dirname(path_i)
-            self.dir_out_entry.insert('0', path_o)
-
-        for _, status, step in utils.decrypt_file(self.prikey, self.thirdkey, path_i, path_o):
-            if   status == -2: tkinter.messagebox.showerror('Error', '文件已损坏')
-            elif status == -1: tkinter.messagebox.showerror('Error', '文件信息无效')
-            elif status ==  0: ResultWindow(path_o, 1, True)
-            elif status ==  1: ResultWindow(path_o, 1, False)
-            elif status ==  2: self.progressbar['value'] = self.progressbar['value'] + step
-
-        self.progressbar['value'] = 0
-        self.file_decrypt_btn['state'] = 'normal'
-        
+    def decrypt_file(self, path_i, path_o, progressbar):
+        for _, status, step in decrypt_file(self.prikey, self.thirdkey, path_i, path_o):
+            if   status == -2: warnmethod('Error', '文件已损坏')
+            elif status == -1: warnmethod('Error', '文件信息无效')
+            elif status ==  0: show_result(path_o, 1, True)
+            elif status ==  1: show_result(path_o, 1, False)
+            elif status ==  2: progressbar['value'] = progressbar['value'] + step
+        progressbar['value'] = 0
 
 
 def encrypt_text(_prikey, _thirdkey, _message: bytes, _sign: bool) -> str:

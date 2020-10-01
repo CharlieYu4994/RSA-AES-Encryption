@@ -430,46 +430,32 @@ class MainWindows(tkinter.Tk, utils.baseinterface):
         keybox.grid(column=0, row=0, sticky='ne', padx=3, pady=1)
 
         tabs.grid(column=0, row=0)
-
-    def getkeylist(self):
-        self.userkeydict = utils.get_keydict('UserKeys', self.database)
-        self.thirdkeydict = utils.get_keydict('ThirdKeys', self.database)
-        self.userkeylist = list(self.userkeydict.keys())
-        self.thirdkeylist = list(self.thirdkeydict.keys())
+    
+    def get_user_input(self, describe):
+        input_window = InputWindow(describe, False)
+        self.wait_window(input_window)
+        return input_window.result
+    
+    def show_result(self):
+        super().show_result()
 
     def freshkeylist(self):
-        self.getkeylist()
+        super().freshkeylist()
         self.thirdkey_ls['values'] = self.thirdkeylist
         self.userkey_ls['values'] = self.userkeylist
 
     def select_userkey(self, describe: str):
-        u_id = self.userkeydict[describe]
-        prikey_t, pubkey_t = utils.get_userkey(u_id, self.database)
-
-        for _ in range(5):
-            input_window = InputWindow('密码  :', False)
-            self.wait_window(input_window)
-            status, prikey, pubkey = utils.load_key(pubkey_t, prikey_t, input_window.result)
-            if not status: tkinter.messagebox.showwarning('Warning', '密码错误'); continue
-            self.prikey, self.pubkey = prikey, pubkey; break
-
-        if not status:
-            tkinter.messagebox.showwarning('Warning', '密码五次输入错误，请重新选择')
-            self.userkey_ls.delete(first='0', last='end')
-
-    def select_thirdkey(self, describe):
-        u_id = self.thirdkeydict[describe]
-        _, self.thirdkey, _ = utils.load_key(utils.get_thirdkey(u_id, self.database))
+        super().select_userkey(describe, self.userkey_ls.delete, ('0', 'end'))
 
     def save_cfg(self):
-        _url = self.cfg_url_entry.get()
-        _outputdir = self.dir_save_entry.get().rstrip('/')
-        _defaultkey = self.userkey_ls.get()
+        url = self.cfg_url_entry.get()
+        outputdir = self.dir_save_entry.get().rstrip('/')
+        defaultkey = self.userkey_ls.get()
 
-        utils.alt_cfg(_url, _outputdir, _defaultkey, self.database)
-
+        super().save_cfg(url, outputdir, defaultkey)
+        
         self.dir_out_entry.delete('0', 'end')
-        self.dir_out_entry.insert('0', _outputdir)
+        self.dir_out_entry.insert('0', outputdir)
 
     def keymanage(self):
         keymanage_window = KeyManage(self.database)
@@ -477,20 +463,9 @@ class MainWindows(tkinter.Tk, utils.baseinterface):
         self.userkey_ls.delete(first='0', last='end')
         self.freshkeylist()
 
-    def gen_key(self):
-        input_window = InputWindow('密码  :', False)
-        self.wait_window(input_window)
-        _, prikey, pubkey = utils.gen_rsakey(2048, input_window.result)
-        input_window = InputWindow('描述  :', True)
-        self.wait_window(input_window)
-        describe = input_window.result if input_window.result else 'UserKey'
-        utils.add_userkey(prikey, pubkey, describe, self.database)
-        self.freshkeylist()
-
     def encrypt_text(self):
         message = self.inputbox.get(index1='0.0', index2='end').encode()
-        final_message = utils.encrypt_text(self.prikey, self.thirdkey, message, self.sign_check.get())
-        ResultWindow(final_message, 0, None)
+        super().encrypt_text(message, self.sign_check.get())
 
     def decrypt_text(self):
         message_t = self.inputbox.get(index1='0.0', index2='end')
