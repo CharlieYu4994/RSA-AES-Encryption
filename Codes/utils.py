@@ -206,7 +206,7 @@ class baseinterface(object):
     def get_user_input(self, describe):
         raise(NotImplementedError)
     
-    def warnmethod(self):
+    def warnmethod(self, type, title, msg):
         raise(NotImplementedError)
     
     def keymanage(self):
@@ -235,11 +235,11 @@ class baseinterface(object):
         for _ in range(5):
             passphase = self.get_user_input('密码: ')
             status, prikey, pubkey = load_key(pubkey_t, prikey_t, describe)
-            if not status: self.warnmethod('Warning', '密码错误'); continue
+            if not status: self.warnmethod(1, 'Warning', '密码错误'); continue
             self.prikey, self.pubkey = prikey, pubkey; break
 
         if not status:
-            self.warnmethod('Warning', '密码五次输入错误，请重新选择')
+            self.warnmethod(1, 'Warning', '密码五次输入错误，请重新选择')
             extraoperate(*args)
 
     def save_cfg(self, url, outputdir, defaultkey):
@@ -256,10 +256,10 @@ class baseinterface(object):
         final_message = encrypt_text(self.prikey, self.thirdkey, message, sign_check)
         self.show_result(final_message, 0, None)
 
-    def decrypt_text(self, message_t, warnmethod):
+    def decrypt_text(self, message_t):
         _, status, message = decrypt_text(self.prikey, self.pubkey, message_t)
-        if   status == -2: warnmethod('Error', '密文已损坏')
-        elif status == -1: warnmethod('Error', '密文解析失败')
+        if   status == -2: self.warnmethod(2, 'Error', '密文已损坏')
+        elif status == -1: self.warnmethod(2, 'Error', '密文解析失败')
         elif status >=  0: self.show_result(message, 0, True if status == 0 else False)
 
     def encrypt_file(self, path_i, path_o, progressbar):
@@ -273,10 +273,10 @@ class baseinterface(object):
 
     def decrypt_file(self, path_i, path_o, progressbar):
         for _, status, step in decrypt_file(self.prikey, self.thirdkey, path_i, path_o):
-            if   status == -2: warnmethod('Error', '文件已损坏')
-            elif status == -1: warnmethod('Error', '文件信息无效')
-            elif status ==  0: show_result(path_o, 1, True)
-            elif status ==  1: show_result(path_o, 1, False)
+            if   status == -2: self.warnmethod(2, 'Error', '文件已损坏')
+            elif status == -1: self.warnmethod(2, 'Error', '文件信息无效')
+            elif status ==  0: self.show_result(path_o, 1, True)
+            elif status ==  1: self.show_result(path_o, 1, False)
             elif status ==  2: progressbar['value'] = progressbar['value'] + step
         progressbar['value'] = 0
 

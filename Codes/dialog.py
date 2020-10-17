@@ -328,7 +328,6 @@ class MainWindows(tkinter.Tk, utils.baseinterface):
     def setupUI(self):
         tabs = ttk.Notebook(self)
 
-#--------------------------------------------第一页------------------------------------------------#
         page_one = ttk.Frame(tabs)
 
         self.inputbox = scrolledtext.ScrolledText(page_one, width=46, height=10, takefocus=False)
@@ -346,7 +345,6 @@ class MainWindows(tkinter.Tk, utils.baseinterface):
         footbox_page_one.grid(column=0, row=1, pady=10)
 
         tabs.add(page_one, text='文本加/解密')
-#--------------------------------------------第二页------------------------------------------------#
         page_two = ttk.Frame(tabs)
 
         dirbox = ttk.Frame(page_two)
@@ -384,7 +382,6 @@ class MainWindows(tkinter.Tk, utils.baseinterface):
         footbox_page_two.grid(column=0, row=1, pady=16)
 
         tabs.add(page_two, text='文件加/解密')
-#--------------------------------------------第三页------------------------------------------------#
         page_three = ttk.Frame(tabs)
 
         footbox_page_three = ttk.Frame(page_three)
@@ -417,7 +414,6 @@ class MainWindows(tkinter.Tk, utils.baseinterface):
         btn_box.grid(column=0, columnspan=9, row=1, pady=10)
 
         tabs.add(page_three, text='杂项')
-#--------------------------------------------标签栏------------------------------------------------#
         keybox = ttk.Frame(self)
         thirdkey_lab = ttk.Label(keybox, text='收/发件人:')
         thirdkey_lab.grid(column=0, row=0, sticky='w')
@@ -436,8 +432,14 @@ class MainWindows(tkinter.Tk, utils.baseinterface):
         self.wait_window(input_window)
         return input_window.result
     
-    def show_result(self):
-        super().show_result()
+    def show_result(self, result, msg_type, sig_status):
+        result_window = ResultWindow(result, msg_type, sig_status)
+    
+    def warnmethod(self, warn_type, title, msg):
+        if warn_type == 1:
+            tkinter.messagebox.showwarning(title, msg)
+        elif warn_type == 2:
+            tkinter.messagebox.showerror(title, msg)
 
     def freshkeylist(self):
         super().freshkeylist()
@@ -475,25 +477,7 @@ class MainWindows(tkinter.Tk, utils.baseinterface):
         elif status >=  0: ResultWindow(message, 0, True if status == 0 else False)
 
     def encrypt_file(self):
-        self.file_encrypt_btn['state'] = 'disabled'
-
-        path_i = self.dir_in_entry.get()
-        if self.dir_out_entry.get():
-            path_o = self.dir_out_entry.get()
-        else :
-            path_o = os.path.dirname(path_i)
-            self.dir_out_entry.insert('0', path_o)
-
-        input_window = InputWindow('文件名:', True)
-        self.wait_window(input_window)
-        filename = input_window.result
-
-        for step in utils.encrypt_file(self.prikey, self.pubkey, path_i, path_o, filename):
-            self.progressbar['value'] = self.progressbar['value'] + step
-
-        self.progressbar['value'] = 0
-        self.file_encrypt_btn['state'] = 'normal'
-        result_window = ResultWindow(path_o, 1, None)
+        super().encrypt_file()
 
     def decrypt_file(self):
         self.file_decrypt_btn['state'] = 'disabled'
