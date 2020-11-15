@@ -481,7 +481,6 @@ def decrypt_file(self, _prikey: RsaKey, _thirdkey: RsaKey, _path_i: str, _path_o
     _sig_status = pss_verify(_thirdkey, None, _sig, _sig_hasher)
     yield True, 0 if _sig_status else 1, ''; return
 
-
 # --------------------------------------------Debug--------------------------------------- #
 if __name__ == '__main__':
     pass
